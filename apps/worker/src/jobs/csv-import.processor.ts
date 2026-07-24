@@ -145,7 +145,7 @@ export async function processCsvImport(job: Job<CsvImportJobData>) {
   }
 }
 
-async function readCsvFile(filePath: string): Promise<any[]> {
+async function readCsvFile(filePath: string): Promise<Record<string, string>[]> {
   if (!fs.existsSync(filePath)) {
     throw new Error('File does not exist');
   }
@@ -154,12 +154,12 @@ async function readCsvFile(filePath: string): Promise<any[]> {
   return parseCsvContent(content);
 }
 
-function parseCsvContent(content: string): any[] {
+function parseCsvContent(content: string): Record<string, string>[] {
   const lines = content.split('\n').filter((line: string) => line.trim());
   if (lines.length === 0) return [];
 
   const headers = parseCsvLine(lines[0]);
-  const rows: any[] = [];
+  const rows: Record<string, string>[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const values = parseCsvLine(lines[i]);
@@ -220,14 +220,14 @@ function detectColumnMapping(headers: string[]): Record<string, string> {
 async function processRow(
   tenantId: string,
   leadListId: string,
-  row: any,
+  row: Record<string, string>,
   rowNumber: number,
   importId: string,
   mapping: Record<string, string>,
   userId: string,
 ): Promise<{ status: string; leadId?: string }> {
   // Apply column mapping
-  const mapped: any = {};
+  const mapped: Record<string, string | undefined> = {};
   for (const [csvColumn, internalField] of Object.entries(mapping)) {
     mapped[internalField] = row[csvColumn];
   }
@@ -339,7 +339,7 @@ async function processRow(
       lastName: mapped.last_name,
       email: mapped.email,
       timezone: mapped.timezone || 'UTC',
-      customFields: extractCustomFields(mapped),
+      customFields: extractCustomFields(mapped) || undefined,
       status: 'new',
       createdBy: userId,
       phones: {
@@ -390,10 +390,10 @@ function normalizePhone(phone: string, country: string): { normalized: string; i
   };
 }
 
-function extractCustomFields(mapped: any): any {
-  const custom: any = {};
+function extractCustomFields(mapped: Record<string, string | undefined>): Record<string, string> | null {
+  const custom: Record<string, string> = {};
   for (const [key, value] of Object.entries(mapped)) {
-    if (key.startsWith('custom_')) {
+    if (key.startsWith('custom_') && value !== undefined) {
       custom[key.replace('custom_', '')] = value;
     }
   }

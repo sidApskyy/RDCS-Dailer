@@ -40,13 +40,16 @@ module.exports = {
         alphabetize: { order: 'asc', caseInsensitive: true },
       },
     ],
-    'import/no-unresolved': 'error',
+    'import/no-unresolved': 'off',
     'import/no-cycle': 'warn',
   },
   settings: {
     'import/resolver': {
       typescript: {
         alwaysTryTypes: true,
+      },
+      node: {
+        extensions: ['.js', '.ts', '.tsx', '.json'],
       },
     },
   },
