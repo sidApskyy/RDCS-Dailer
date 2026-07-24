@@ -10,7 +10,7 @@ interface TenantRequest {
 
 @Injectable()
 export class TenantInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest() as TenantRequest;
     const user = request.user;
 

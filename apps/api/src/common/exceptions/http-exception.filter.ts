@@ -37,8 +37,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
-        const code = (response as any).code;
-        if (code) return code;
+        const code = (response as Record<string, unknown>).code;
+        if (typeof code === 'string') return code;
       }
       return this.getDefaultErrorCode(exception.getStatus());
     }
@@ -52,7 +52,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         return response;
       }
       if (typeof response === 'object' && response !== null) {
-        const message = (response as any).message;
+        const message = (response as Record<string, unknown>).message;
         if (Array.isArray(message)) {
           return message.join(', ');
         }
@@ -70,11 +70,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
-        const details = (response as any).details;
+        const details = (response as Record<string, unknown>).details;
         if (Array.isArray(details)) {
           return details;
         }
-        const message = (response as any).message;
+        const message = (response as Record<string, unknown>).message;
         if (Array.isArray(message)) {
           return message;
         }

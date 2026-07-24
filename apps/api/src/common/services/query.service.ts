@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 export interface QueryFilter {
   field: string;
   operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'contains' | 'startsWith' | 'endsWith';
-  value: any;
+  value: string | number | boolean | string[] | number[];
 }
 
 export interface QuerySort {
@@ -30,8 +30,8 @@ export interface QueryResult<T> {
 
 @Injectable()
 export class QueryService {
-  buildWhereClause(filters: QueryFilter[], search?: string, searchFields?: string[]): any {
-    const where: any = {};
+  buildWhereClause(filters: QueryFilter[], search?: string, searchFields?: string[]): Record<string, unknown> {
+    const where: Record<string, unknown> = {};
 
     if (filters && filters.length > 0) {
       filters.forEach((filter) => {
@@ -48,7 +48,7 @@ export class QueryService {
     return where;
   }
 
-  private applyFilter(where: any, filter: QueryFilter): void {
+  private applyFilter(where: Record<string, unknown>, filter: QueryFilter): void {
     const { field, operator, value } = filter;
 
     switch (operator) {
@@ -88,7 +88,7 @@ export class QueryService {
     }
   }
 
-  buildOrderByClause(sort: QuerySort[]): any {
+  buildOrderByClause(sort: QuerySort[]): Record<string, 'asc' | 'desc'> | Record<string, 'asc' | 'desc'>[] {
     if (!sort || sort.length === 0) {
       return { createdAt: 'desc' };
     }
@@ -108,22 +108,22 @@ export class QueryService {
     return { page, pageSize, totalPages };
   }
 
-  parseQueryParams(params: any): QueryOptions {
+  parseQueryParams(params: Record<string, unknown>): QueryOptions {
     const options: QueryOptions = {
-      skip: params.skip ? parseInt(params.skip) : 0,
-      take: params.take ? Math.min(parseInt(params.take), 100) : 50,
+      skip: typeof params.skip === 'string' ? parseInt(params.skip) : 0,
+      take: typeof params.take === 'string' ? Math.min(parseInt(params.take), 100) : 50,
     };
 
-    if (params.search) {
+    if (typeof params.search === 'string') {
       options.search = params.search;
     }
 
     if (params.searchFields) {
-      options.searchFields = Array.isArray(params.searchFields) ? params.searchFields : params.searchFields.split(',');
+      options.searchFields = Array.isArray(params.searchFields) ? params.searchFields as string[] : (params.searchFields as string).split(',');
     }
 
     if (params.sort) {
-      const sortFields = Array.isArray(params.sort) ? params.sort : params.sort.split(',');
+      const sortFields = Array.isArray(params.sort) ? params.sort as string[] : (params.sort as string).split(',');
       options.sort = sortFields.map((field: string) => {
         const direction = field.startsWith('-') ? 'desc' : 'asc';
         const fieldName = field.startsWith('-') ? field.substring(1) : field;
@@ -133,7 +133,7 @@ export class QueryService {
 
     if (params.filters) {
       try {
-        options.filters = typeof params.filters === 'string' ? JSON.parse(params.filters) : params.filters;
+        options.filters = typeof params.filters === 'string' ? JSON.parse(params.filters) : params.filters as QueryFilter[];
       } catch (e) {
         console.error('Invalid filters JSON:', e);
       }
@@ -143,10 +143,10 @@ export class QueryService {
   }
 
   async executePaginatedQuery<T>(
-    model: any,
+    model: { findMany: (args: unknown) => Promise<T[]>; count: (args: unknown) => Promise<number> },
     options: QueryOptions,
-    additionalWhere?: any,
-    additionalInclude?: any,
+    additionalWhere?: Record<string, unknown>,
+    additionalInclude?: Record<string, unknown>,
   ): Promise<QueryResult<T>> {
     const where = {
       ...this.buildWhereClause(options.filters || [], options.search, options.searchFields),
