@@ -98,7 +98,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret-key
-        run: pnpm --filter api test --testPathPattern=integration
+        run: pnpm --filter api test -- --testPathPattern=integration
 
   test-security:
     name: Security Tests
@@ -152,7 +152,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret-key
-        run: pnpm --filter api test --testPathPattern=security
+        run: pnpm --filter api test -- --testPathPattern=security
 
   test-csv-bullmq:
     name: CSV and BullMQ Tests
@@ -206,12 +206,12 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret-key
-        run: pnpm --filter api test --testPathPattern=csv
+        run: pnpm --filter api test -- --testPathPattern=csv
       - name: Run BullMQ tests
         env:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
-        run: pnpm --filter api test --testPathPattern=bullmq
+        run: pnpm --filter api test -- --testPathPattern=bullmq
 
   build:
     name: Build
