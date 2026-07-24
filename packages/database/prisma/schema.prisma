@@ -1,0 +1,814 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  status      String    @default("active")
+  settings    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  users         User[]
+  organizations Organization[]
+  roles         Role[]
+  permissions   Permission[]
+  sessions      Session[]
+  apiKeys       ApiKey[]
+  audits        Audit[]
+  userInvitations UserInvitation[]
+  passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  campaigns     Campaign[]
+  leadLists     LeadList[]
+  leadImports   LeadListImport[]
+  leadPhones    LeadPhone[]
+  leadDispositions LeadDisposition[]
+  dispositions  Disposition[]
+  callbacks     Callback[]
+  consents      Consent[]
+  dncLists      DNCList[]
+  dncEntries    DNCEntry[]
+  callingWindows CallingWindow[]
+  holidayCalendars HolidayCalendar[]
+  leadAttempts  LeadAttempt[]
+  leads Lead[]
+
+  @@index([slug])
+  @@index([status])
+  @@map("tenants")
+}
+
+model Organization {
+  id            String    @id @default(cuid())
+  tenantId      String    @map("tenant_id")
+  parentId      String?   @map("parent_id")
+  slug          String
+  name          String
+  type          String    @default("department")
+  settings      Json?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id])
+  parent  Organization?   @relation("OrgHierarchy", fields: [parentId], references: [id])
+  children Organization[] @relation("OrgHierarchy")
+  users   User[]
+  invitations UserInvitation[]
+  campaigns Campaign[]
+  leadLists LeadList[]
+  assignedLeads Lead[] @relation("LeadTeam")
+  leads Lead[]
+  teamCallbacks Callback[] @relation("CallbackTeam")
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, parentId])
+  @@map("organizations")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
+  organizationId String?   @map("organization_id")
+  email          String
+  passwordHash   String    @map("password_hash")
+  firstName      String    @map("first_name")
+  lastName       String    @map("last_name")
+  phone          String?
+  timezone       String    @default("UTC")
+  locale         String    @default("en-US")
+  status         String    @default("active")
+  mfaSecret      String?   @map("mfa_secret")
+  mfaEnabled     Boolean   @default(false) @map("mfa_enabled")
+  lastLoginAt    DateTime? @map("last_login_at")
+  loginAttempts  Int       @default(0) @map("login_attempts")
+  lockedUntil    DateTime? @map("locked_until")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  organization Organization?   @relation(fields: [organizationId], references: [id])
+  roles        UserRole[]
+  sessions     Session[]
+  apiKeys      ApiKey[]
+  audits       Audit[]
+  passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  createdCampaigns Campaign[] @relation("CampaignCreator")
+  updatedCampaigns Campaign[] @relation("CampaignUpdater")
+  createdLeadLists LeadList[] @relation("LeadListCreator")
+  createdImports LeadListImport[] @relation("ImportCreator")
+  assignedLeads Lead[] @relation("LeadAssignee")
+  createdLeads Lead[] @relation("LeadCreator")
+  updatedLeads Lead[] @relation("LeadUpdater")
+  appliedDispositions LeadDisposition[] @relation("DispositionApplier")
+  createdDispositions Disposition[] @relation("DispositionCreator")
+  scheduledCallbacks Callback[] @relation("CallbackScheduler")
+  assignedCallbacks Callback[] @relation("CallbackAssignee")
+  createdDNCLists DNCList[] @relation("DNCCreator")
+  addedDNCEntries DNCEntry[] @relation("DNCAdder")
+  leadAttempts LeadAttempt[] @relation("AttemptAgent")
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@index([email])
+  @@map("users")
+}
+
+model Role {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
+  name        String
+  description String?
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  resource    String
+  action      String
+  scope       String   @default("own")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  roles       RolePermission[]
+
+  @@unique([tenantId, resource, action, scope])
+  @@index([tenantId, resource, action])
+  @@map("permissions")
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Session {
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
+  userId         String    @map("user_id")
+  token          String    @unique
+  refreshTokenHash String?  @map("refresh_token_hash")
+  ipAddress      String?   @map("ip_address")
+  userAgent      String?   @map("user_agent")
+  deviceInfo     Json?
+  expiresAt      DateTime  @map("expires_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([refreshTokenHash])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  tenantId   String    @map("tenant_id")
+  userId     String?   @map("user_id")
+  name       String
+  keyHash    String    @unique @map("key_hash")
+  scopes     String[]
+  lastUsedAt DateTime? @map("last_used_at")
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([keyHash])
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+model Audit {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  resource   String
+  resourceId String?  @map("resource_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([resource, resourceId])
+  @@index([userId])
+  @@map("audits")
+}
+
+model UserInvitation {
+  id           String    @id @default(cuid())
+  tenantId     String    @map("tenant_id")
+  organizationId String?  @map("organization_id")
+  email        String
+  token        String    @unique
+  roleIds      String[]  @map("role_ids")
+  invitedBy    String    @map("invited_by")
+  acceptedBy   String?   @map("accepted_by")
+  acceptedAt   DateTime? @map("accepted_at")
+  expiresAt    DateTime  @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([token])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("user_invitations")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  token     String   @unique
+  email     String
+  expiresAt DateTime @map("expires_at")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+// Phase 3: Campaign Domain
+
+model Campaign {
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  organizationId   String?  @map("organization_id")
+  name             String
+  description      String?
+  slug             String
+  status           String   @default("draft") // draft, active, paused, completed, archived
+  type             String?  @default("outbound")
+  purpose          String?
+  startDate        DateTime? @map("start_date")
+  endDate          DateTime? @map("end_date")
+  timezone         String   @default("UTC")
+  priority         Int      @default(0)
+  settings         Json?
+  createdBy        String   @map("created_by")
+  updatedBy        String?  @map("updated_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  creator      User            @relation("CampaignCreator", fields: [createdBy], references: [id])
+  updater      User?           @relation("CampaignUpdater", fields: [updatedBy], references: [id])
+  leadLists    CampaignLeadList[]
+  schedules    CampaignSchedule[]
+  callerIds    CampaignCallerID[]
+  dispositions CampaignDisposition[]
+  leads        Lead[]
+  attempts     LeadAttempt[]
+  callbacks    Callback[]
+  leadDispositions LeadDisposition[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([tenantId, organizationId])
+  @@index([startDate, endDate])
+  @@map("campaigns")
+}
+
+model CampaignSchedule {
+  id          String   @id @default(cuid())
+  campaignId  String   @map("campaign_id")
+  dayOfWeek   Int      @map("day_of_week") // 0-6 (Sunday-Saturday)
+  startTime   String   @map("start_time") // HH:MM format
+  endTime     String   @map("end_time") // HH:MM format
+  timezone    String   @default("UTC")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_schedules")
+}
+
+model CampaignCallerID {
+  id         String   @id @default(cuid())
+  campaignId String   @map("campaign_id")
+  phoneNumber String  @map("phone_number")
+  label      String?
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_caller_ids")
+}
+
+model CampaignDisposition {
+  id           String   @id @default(cuid())
+  campaignId   String   @map("campaign_id")
+  dispositionId String  @map("disposition_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  campaign   Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  disposition Disposition @relation(fields: [dispositionId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, dispositionId])
+  @@index([campaignId])
+  @@map("campaign_dispositions")
+}
+
+// Phase 3: Lead List Domain
+
+model LeadList {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  organizationId String?  @map("organization_id")
+  name           String
+  description    String?
+  status         String   @default("active") // active, archived, deleted
+  totalRows      Int      @default(0) @map("total_rows")
+  processedRows  Int      @default(0) @map("processed_rows")
+  successfulRows Int      @default(0) @map("successful_rows")
+  failedRows     Int      @default(0) @map("failed_rows")
+  duplicateRows  Int      @default(0) @map("duplicate_rows")
+  suppressedRows Int      @default(0) @map("suppressed_rows")
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  creator      User            @relation("LeadListCreator", fields: [createdBy], references: [id])
+  campaigns    CampaignLeadList[]
+  imports      LeadListImport[]
+  leads        Lead[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, organizationId])
+  @@map("lead_lists")
+}
+
+model CampaignLeadList {
+  id        String   @id @default(cuid())
+  campaignId String  @map("campaign_id")
+  leadListId String @map("lead_list_id")
+  attachedAt DateTime @default(now()) @map("attached_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadList LeadList @relation(fields: [leadListId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, leadListId])
+  @@index([campaignId])
+  @@index([leadListId])
+  @@map("campaign_lead_lists")
+}
+
+model LeadListImport {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  leadListId   String   @map("lead_list_id")
+  fileName     String   @map("file_name")
+  fileSize     Int      @map("file_size")
+  status       String   @default("pending") // pending, processing, completed, failed
+  totalRows    Int      @default(0) @map("total_rows")
+  processedRows Int     @default(0) @map("processed_rows")
+  successfulRows Int    @default(0) @map("successful_rows")
+  failedRows   Int      @default(0) @map("failed_rows")
+  duplicateRows Int     @default(0) @map("duplicate_rows")
+  suppressedRows Int    @default(0) @map("suppressed_rows")
+  invalidRows  Int      @default(0) @map("invalid_rows")
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  errorMessage String?  @map("error_message")
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadList LeadList @relation(fields: [leadListId], references: [id], onDelete: Cascade)
+  creator  User     @relation("ImportCreator", fields: [createdBy], references: [id])
+  rows     LeadImportRow[]
+
+  @@index([tenantId, status])
+  @@index([leadListId])
+  @@index([createdAt])
+  @@map("lead_list_imports")
+}
+
+model LeadImportRow {
+  id         String   @id @default(cuid())
+  importId   String   @map("import_id")
+  rowNumber  Int      @map("row_number")
+  status     String   @default("pending") // pending, processed, failed, duplicate, suppressed, invalid
+  rawData    Json     @map("raw_data")
+  normalizedData Json? @map("normalized_data")
+  errorCode  String?  @map("error_code")
+  errorMessage String? @map("error_message")
+  leadId     String?  @map("lead_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  import LeadListImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId, status])
+  @@index([importId, rowNumber])
+  @@index([leadId])
+  @@map("lead_import_rows")
+}
+
+// Phase 3: Lead Domain
+
+model Lead {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  organizationId String?  @map("organization_id")
+  leadListId     String?  @map("lead_list_id")
+  campaignId     String?  @map("campaign_id")
+  externalId     String?  @map("external_id") // External CRM ID
+  firstName      String?  @map("first_name")
+  lastName       String?  @map("last_name")
+  email          String?
+  status         String   @default("new") // new, eligible, assigned, in_progress, callback, contacted, not_contacted, dnc, disqualified, converted, exhausted, archived
+  timezone       String   @default("UTC")
+  customFields   Json?    @map("custom_fields")
+  assignedTo     String?  @map("assigned_to") // User ID
+  assignedTeamId String?  @map("assigned_team_id") // Organization ID
+  assignedAt     DateTime? @map("assigned_at")
+  createdBy      String   @map("created_by")
+  updatedBy      String?  @map("updated_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  leadList     LeadList?       @relation(fields: [leadListId], references: [id], onDelete: SetNull)
+  campaign     Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  assignee     User?           @relation("LeadAssignee", fields: [assignedTo], references: [id])
+  assignedTeam Organization?   @relation("LeadTeam", fields: [assignedTeamId], references: [id])
+  creator      User            @relation("LeadCreator", fields: [createdBy], references: [id])
+  updater      User?           @relation("LeadUpdater", fields: [updatedBy], references: [id])
+  phones       LeadPhone[]
+  consents     Consent[]
+  attempts     LeadAttempt[]
+  callbacks    Callback[]
+  dispositions LeadDisposition[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, campaignId])
+  @@index([tenantId, leadListId])
+  @@index([tenantId, assignedTo])
+  @@index([tenantId, assignedTeamId])
+  @@index([tenantId, status, assignedTo])
+  @@index([externalId])
+  @@index([email])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+model LeadPhone {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  leadId     String   @map("lead_id")
+  phoneNumber String  @map("phone_number")
+  type       String   @default("mobile") // mobile, home, work, other
+  isPrimary Boolean  @default(false) @map("is_primary")
+  isValid    Boolean  @default(true) @map("is_valid")
+  normalizedNumber String? @map("normalized_number") // E.164 format
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, phoneNumber])
+  @@index([tenantId, phoneNumber])
+  @@index([leadId])
+  @@index([createdAt])
+  @@map("lead_phones")
+}
+
+model LeadDisposition {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  leadId       String   @map("lead_id")
+  campaignId   String?  @map("campaign_id")
+  dispositionId String  @map("disposition_id")
+  phoneNumber  String?  @map("phone_number")
+  notes        String?
+  appliedBy    String   @map("applied_by")
+  appliedAt    DateTime @default(now()) @map("applied_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign     Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  disposition  Disposition  @relation(fields: [dispositionId], references: [id])
+  applier      User         @relation("DispositionApplier", fields: [appliedBy], references: [id])
+
+  @@index([tenantId, leadId])
+  @@index([tenantId, campaignId])
+  @@index([leadId])
+  @@map("lead_dispositions")
+}
+
+model Disposition {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  code        String   @unique
+  name        String
+  category    String   // positive, negative, neutral, callback, dnc
+  outcome     String   // terminal, non_terminal
+  retryBehavior String? @map("retry_behavior") // retry_later, retry_immediately, no_retry
+  callbackEligible Boolean @default(false) @map("callback_eligible")
+  dncBehavior String? @map("dnc_behavior") // add_dnc, no_dnc
+  isActive    Boolean  @default(true) @map("is_active")
+  description String?
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  creator     User                @relation("DispositionCreator", fields: [createdBy], references: [id])
+  campaigns   CampaignDisposition[]
+  leadDispositions LeadDisposition[]
+  leadAttempts LeadAttempt[]
+
+  @@index([tenantId, code])
+  @@index([tenantId, category])
+  @@index([tenantId, isActive])
+  @@map("dispositions")
+}
+
+// Phase 3: Callback Domain
+
+model Callback {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  leadId       String   @map("lead_id")
+  campaignId   String?  @map("campaign_id")
+  phoneNumber  String?  @map("phone_number")
+  scheduledFor DateTime @map("scheduled_for")
+  scheduledBy  String   @map("scheduled_by")
+  assignedTo   String?  @map("assigned_to") // User ID
+  assignedTeamId String? @map("assigned_team_id") // Organization ID
+  notes        String?
+  status       String   @default("pending") // pending, completed, cancelled, missed
+  priority     Int      @default(0)
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead         Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign     Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  scheduler    User            @relation("CallbackScheduler", fields: [scheduledBy], references: [id])
+  assignee     User?           @relation("CallbackAssignee", fields: [assignedTo], references: [id])
+  assignedTeam Organization?   @relation("CallbackTeam", fields: [assignedTeamId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledFor])
+  @@index([leadId])
+  @@index([campaignId])
+  @@index([assignedTo])
+  @@index([assignedTeamId])
+  @@index([priority, scheduledFor])
+  @@map("callbacks")
+}
+
+// Phase 3: Consent Domain
+
+model Consent {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  leadId     String   @map("lead_id")
+  phoneNumber String?  @map("phone_number")
+  status     String   @default("unknown") // granted, revoked, expired, unknown
+  type       String   // express, implied, verbal, written, electronic
+  source     String?  // website, phone, email, in_person, third_party
+  method     String?  // checkbox, signature, recorded_call, email_confirmation
+  evidence   Json?    // Consent evidence (IP, timestamp, recording reference, etc.)
+  jurisdiction String? // Country/region for compliance
+  scope      String?  // all_communications, specific_campaign, specific_purpose
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, leadId])
+  @@index([tenantId, phoneNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("consents")
+}
+
+// Phase 3: DNC Domain
+
+model DNCList {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  type        String   @default("tenant") // tenant, campaign, global
+  scope       String   @default("all") // all, specific_campaign, specific_purpose
+  isActive    Boolean  @default(true) @map("is_active")
+  entryCount  Int      @default(0) @map("entry_count")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  creator User       @relation("DNCCreator", fields: [createdBy], references: [id])
+  entries DNCEntry[]
+
+  @@index([tenantId, type])
+  @@index([tenantId, isActive])
+  @@map("dnc_lists")
+}
+
+model DNCEntry {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  dncListId  String   @map("dnc_list_id")
+  phoneNumber String  @map("phone_number")
+  reason     String?  // user_requested, legal_requirement, complaint, other
+  source     String?  // manual, import, api, integration
+  addedBy    String   @map("added_by")
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dncList  DNCList @relation(fields: [dncListId], references: [id], onDelete: Cascade)
+  adder    User     @relation("DNCAdder", fields: [addedBy], references: [id])
+
+  @@unique([dncListId, phoneNumber])
+  @@index([tenantId, phoneNumber])
+  @@index([dncListId])
+  @@index([expiresAt])
+  @@map("dnc_entries")
+}
+
+// Phase 3: Calling Window Domain
+
+model CallingWindow {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  dayOfWeek   Int      @map("day_of_week") // 0-6 (Sunday-Saturday), -1 for all days
+  startTime   String   @map("start_time") // HH:MM format
+  endTime     String   @map("end_time") // HH:MM format
+  timezone    String   @default("UTC")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive])
+  @@map("calling_windows")
+}
+
+model HolidayCalendar {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  date        DateTime
+  description String?
+  isRecurring Boolean  @default(false) @map("is_recurring")
+  timezone    String   @default("UTC")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+  @@map("holiday_calendars")
+}
+
+// Phase 3: Attempt Tracking Domain
+
+model LeadAttempt {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  leadId      String   @map("lead_id")
+  campaignId  String?  @map("campaign_id")
+  phoneNumber String  @map("phone_number")
+  attemptNumber Int    @map("attempt_number")
+  dispositionId String? @map("disposition_id")
+  agentId     String?  @map("agent_id")
+  outcome     String?  // connected, no_answer, busy, voicemail, failed, etc.
+  duration    Int?     // Call duration in seconds
+  recordingUrl String? @map("recording_url")
+  notes       String?
+  source      String   @default("manual") // manual, dialer, api
+  providerRef String?  @map("provider_ref") // External provider reference
+  startedAt   DateTime @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead        Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign    Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  disposition Disposition?    @relation(fields: [dispositionId], references: [id])
+  agent       User?           @relation("AttemptAgent", fields: [agentId], references: [id])
+
+  @@index([tenantId, leadId])
+  @@index([tenantId, campaignId])
+  @@index([leadId, attemptNumber])
+  @@index([startedAt])
+  @@index([agentId])
+  @@map("lead_attempts")
+}
+
+// Phase 3: Eligibility Decision Domain
+
+model LeadEligibilityDecision {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  leadId      String   @map("lead_id")
+  campaignId  String   @map("campaign_id")
+  phoneNumber String  @map("phone_number")
+  eligible    Boolean
+  reason      String   // ELIGIBLE, DNC_BLOCKED, CONSENT_MISSING, OUTSIDE_CALLING_WINDOW, etc.
+  rule        String   // The specific rule that caused the decision
+  metadata    Json?
+  evaluatedAt DateTime @map("evaluated_at")
+  expiresAt   DateTime? @map("expires_at")
+
+  @@index([tenantId, leadId])
+  @@index([tenantId, campaignId])
+  @@index([evaluatedAt])
+  @@map("lead_eligibility_decisions")
+}

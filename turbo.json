@@ -1,0 +1,24 @@
+{
+  "globalDependencies": ["**/.env.*local", "**/.env"],
+  "globalEnv": ["NODE_ENV", "DATABASE_URL", "REDIS_URL", "JWT_SECRET", "JWT_REFRESH_SECRET"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build", "@rdcs/database#db:generate"],
+      "outputs": ["dist/**", ".next/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["@rdcs/database#db:generate"]
+    },
+    "lint": {},
+    "typecheck": {
+      "dependsOn": ["^build", "@rdcs/database#db:generate"]
+    },
+    "db:generate": {
+      "cache": false
+    }
+  }
+}

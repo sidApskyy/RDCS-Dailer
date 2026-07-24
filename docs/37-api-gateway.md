@@ -1,0 +1,242 @@
+# 37 — API Gateway
+
+**Document Control**
+
+| Property | Value |
+|----------|-------|
+| Title | API Gateway |
+| Version | 1.0.0 |
+| Status | Draft |
+| Author | Enterprise Architecture Team |
+| Last Updated | 21-Jul-2026 |
+
+---
+
+## 1. Introduction
+
+This document defines the API Gateway layer for the RDCS In-House Dialer Platform. The API Gateway is a logical layer implemented in Nginx and NestJS that handles routing, authentication, authorization, rate limiting, and request/response standardization.
+
+## 2. Gateway Responsibilities
+
+| Concern | Implementation |
+|---------|---------------|
+| Routing | Nginx + NestJS controllers |
+| Authentication | JWT validation in NestJS Guard |
+| Authorization | RBAC permission evaluation |
+| Tenant Resolution | Header or JWT-based tenant context |
+| Rate Limiting | Nginx + Redis + NestJS Throttler |
+| API Versioning | URL path `/api/v1/...` |
+| Request Validation | Zod / class-validator DTOs |
+| Response Standardization | NestJS interceptor |
+| Logging & Tracing | Correlation ID middleware |
+| CORS | Nginx / NestJS CORS config |
+| TLS | Nginx terminates TLS |
+
+## 3. Request Lifecycle
+
+```
+Client
+  │ HTTPS
+  ▼
+Cloudflare (WAF)
+  │
+  ▼
+Nginx (TLS, rate limit, routing)
+  │
+  ├─ /api/v1/* → NestJS API
+  ├─ /socket.io/* → Socket.IO Gateway
+  └─ / → Next.js Web
+  ▼
+NestJS API Gateway Middleware
+  - Request ID / correlation ID
+  - Tenant resolution
+  - JWT auth
+  - Permission check
+  - DTO validation
+  - Route to controller
+  ▼
+Controller → Application Service → Domain → Repository
+  ▼
+Response Interceptor
+  - Standard envelope
+  - Pagination meta
+  - Error mapping
+  ▼
+Client
+```
+
+## 4. URL Structure
+
+```
+https://api.rdcs.example.com/api/v1/{resource}/{id}?{filters}
+```
+
+Examples:
+- `GET /api/v1/campaigns`
+- `POST /api/v1/campaigns`
+- `GET /api/v1/campaigns/:id`
+- `PATCH /api/v1/campaigns/:id`
+- `DELETE /api/v1/campaigns/:id`
+- `POST /api/v1/campaigns/:id/activate`
+- `GET /api/v1/leads?campaignId=...&status=callable`
+- `POST /api/v1/leads/import`
+
+## 5. Standard Response Envelope
+
+### Success Response
+
+```json
+{
+  "data": {},
+  "meta": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 100,
+    "totalPages": 5
+  },
+  "error": null
+}
+```
+
+### Error Response
+
+```json
+{
+  "data": null,
+  "meta": null,
+  "error": {
+    "code": "CALL_NOT_FOUND",
+    "message": "Call with id call_123 not found",
+    "details": {},
+    "timestamp": "2026-07-21T10:00:00Z",
+    "requestId": "req_abc123"
+  }
+}
+```
+
+## 6. Authentication
+
+- Access token is a JWT in the `Authorization: Bearer <token>` header.
+- Refresh token is in an http-only cookie or sent via secure header for refresh endpoint.
+- API keys are used for integrations and sent via `X-API-Key` header.
+- JWT contains: `sub` (userId), `tenantId`, `roles`, `permissions`, `iat`, `exp`, `jti`.
+
+## 7. Authorization
+
+- `@UseGuards(JwtAuthGuard, PermissionsGuard)` on controllers.
+- `@RequirePermission('resource', 'action', 'scope')` decorator on routes.
+- Permission service evaluates user roles against requested resource-action-scope.
+- Tenant isolation enforced by tenant guard and query filters.
+
+## 8. Rate Limiting
+
+### 8.1 Nginx Layer
+
+IP-based rate limits for basic protection and DDoS mitigation.
+
+### 8.2 Application Layer
+
+Tenant and user-based rate limits using `@nestjs/throttler` with Redis store.
+
+```typescript
+ThrottlerModule.forRoot({
+  throttlers: [
+    { name: 'default', ttl: 60, limit: 100 },
+    { name: 'auth', ttl: 60, limit: 10 },
+    { name: 'webhook', ttl: 60, limit: 1000 },
+  ],
+  storage: new ThrottlerRedisStorage(redisClient),
+});
+```
+
+### 8.3 Per-Endpoint Limits
+
+```typescript
+@Throttle('default', { ttl: 60, limit: 100 })
+@Get('campaigns')
+async findAll() { ... }
+
+@Throttle('auth', { ttl: 60, limit: 5 })
+@Post('auth/login')
+async login() { ... }
+```
+
+## 9. API Versioning
+
+- URL path versioning: `/api/v1/...`.
+- Version 1 is the initial release.
+- When version 2 is introduced, both versions supported for 6 months.
+- Deprecated versions return `Sunset` header.
+
+## 10. CORS
+
+- CORS configured for allowed origins in Nginx or NestJS.
+- Credentials enabled for cookie-based auth.
+- Allowed methods: GET, POST, PUT, PATCH, DELETE, OPTIONS.
+- Allowed headers: Authorization, Content-Type, X-Tenant-Id, X-Request-Id, X-API-Key.
+
+## 11. Tenant Resolution
+
+- Primary: JWT `tenantId` claim.
+- Secondary: `X-Tenant-Id` header for API key requests.
+- Subdomain-based tenant resolution for future white-labeling.
+- Resolved tenant stored in request context (`@Tenant()` decorator).
+
+## 12. Validation
+
+- DTOs validated with `class-validator` and `class-transformer` or Zod.
+- Validation errors return 400 with detailed field errors.
+- Custom validation pipes for tenant-aware checks.
+
+## 13. Logging & Tracing
+
+- Correlation ID (`X-Request-Id`) generated at Nginx or generated by API.
+- Correlation ID propagated to all downstream requests and logs.
+- Request/response logs in JSON format with duration, status, tenantId, userId.
+- Sensitive fields redacted from logs.
+
+## 14. Error Handling
+
+- Global exception filter maps exceptions to standard error envelope.
+- Domain errors → 400/409/422.
+- Auth errors → 401/403.
+- Not found → 404.
+- Server errors → 500.
+- Rate limit → 429.
+- Errors reported to Sentry in production.
+
+## 15. OpenAPI / Swagger
+
+- Swagger UI available at `/api/v1/docs` in non-production; `/api/v1/docs` can be IP-restricted in production.
+- OpenAPI spec auto-generated from decorators and DTOs.
+- API documentation exported as JSON/YAML for external consumers.
+
+## 16. WebSocket Gateway
+
+- Socket.IO server authenticates connections via JWT handshake.
+- Namespaces: `/agents`, `/supervisors`, `/dashboard`.
+- Rooms scoped by tenant, department, team, and user.
+- Rate limits on event emission and connection count.
+- Scale horizontally using Redis adapter.
+
+## 17. API Gateway Configuration (Nginx)
+
+See `20-reverse-proxy-architecture.md` for Nginx configuration details.
+
+## 18. Security Headers
+
+The gateway applies security headers to all responses:
+
+- `Strict-Transport-Security`
+- `X-Frame-Options`
+- `X-Content-Type-Options`
+- `Referrer-Policy`
+- `Content-Security-Policy`
+- `Permissions-Policy`
+
+## 19. Future Enhancements
+
+- Dedicated API Gateway product (Kong, Envoy, AWS API Gateway) for multi-region or advanced policies.
+- GraphQL gateway alongside REST.
+- API monetization and usage analytics.
+- Request/response transformation for legacy integrations.
