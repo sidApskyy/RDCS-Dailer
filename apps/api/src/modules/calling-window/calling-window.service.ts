@@ -22,10 +22,29 @@ export interface UpdateCallingWindowDto {
   isActive?: boolean;
 }
 
+export interface CallingWindowRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  timezone: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface WindowCheckResult {
   isInWindow: boolean;
-  window?: any;
+  window?: CallingWindowRecord;
   reason?: string;
+}
+
+export interface CallingWindowListResult {
+  callingWindows: CallingWindowRecord[];
+  total: number;
 }
 
 @Injectable()
@@ -35,7 +54,7 @@ export class CallingWindowService {
     private readonly timezoneService: TimezoneService,
   ) {}
 
-  async create(tenantId: string, dto: CreateCallingWindowDto): Promise<any> {
+  async create(tenantId: string, dto: CreateCallingWindowDto): Promise<CallingWindowRecord> {
     if (!this.timezoneService.isValidTimezone(dto.timezone)) {
       throw new BadRequestException(`Invalid timezone: ${dto.timezone}`);
     }
@@ -60,7 +79,7 @@ export class CallingWindowService {
     return callingWindow;
   }
 
-  async findById(tenantId: string, id: string): Promise<any> {
+  async findById(tenantId: string, id: string): Promise<CallingWindowRecord> {
     const callingWindow = await this.prisma.callingWindow.findFirst({
       where: { tenantId, id },
     });
@@ -72,8 +91,8 @@ export class CallingWindowService {
     return callingWindow;
   }
 
-  async findAll(tenantId: string, params: { isActive?: boolean; skip?: number; take?: number }): Promise<any> {
-    const where: any = { tenantId };
+  async findAll(tenantId: string, params: { isActive?: boolean; skip?: number; take?: number }): Promise<CallingWindowListResult> {
+    const where: { tenantId: string; isActive?: boolean } = { tenantId };
     if (params.isActive !== undefined) where.isActive = params.isActive;
 
     const [callingWindows, total] = await Promise.all([
@@ -89,7 +108,7 @@ export class CallingWindowService {
     return { callingWindows, total };
   }
 
-  async update(tenantId: string, id: string, dto: UpdateCallingWindowDto): Promise<any> {
+  async update(tenantId: string, id: string, dto: UpdateCallingWindowDto): Promise<CallingWindowRecord> {
     await this.findById(tenantId, id);
 
     if (dto.timezone && !this.timezoneService.isValidTimezone(dto.timezone)) {
@@ -108,7 +127,7 @@ export class CallingWindowService {
     return updated;
   }
 
-  async delete(tenantId: string, id: string): Promise<any> {
+  async delete(tenantId: string, id: string): Promise<{ success: true }> {
     await this.findById(tenantId, id);
 
     await this.prisma.callingWindow.delete({
@@ -137,7 +156,7 @@ export class CallingWindowService {
     return { isInWindow: false, reason: 'Outside all calling windows' };
   }
 
-  private checkWindow(date: Date, window: any): WindowCheckResult {
+  private checkWindow(date: Date, window: CallingWindowRecord): WindowCheckResult {
     const dayOfWeek = this.timezoneService.getDayOfWeekInTimezone(date, window.timezone);
     const hour = this.timezoneService.getHourInTimezone(date, window.timezone);
     const minute = this.timezoneService.getMinuteInTimezone(date, window.timezone);

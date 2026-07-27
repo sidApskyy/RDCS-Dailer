@@ -1,8 +1,8 @@
 'use client';
 
 import { PhoneCall, PhoneOff, UserRound } from 'lucide-react';
-import { io } from 'socket.io-client';
 import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 
 import { DashboardLayout } from '../../components/dashboard-layout';
 import { Badge } from '../../components/ui/badge';
