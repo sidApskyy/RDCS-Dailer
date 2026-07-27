@@ -11,9 +11,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -24,9 +24,9 @@ jobs:
     name: Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -37,9 +37,9 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -73,9 +73,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -98,7 +98,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret-key
-        run: pnpm --filter @rdcs/api exec jest test/integration
+        run: pnpm --filter @rdcs/api exec jest test/integration --runInBand
 
   test-security:
     name: Security Tests
@@ -127,9 +127,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -152,7 +152,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret-key
-        run: pnpm --filter @rdcs/api exec jest test/security
+        run: pnpm --filter @rdcs/api exec jest test/security --runInBand
 
   test-csv-bullmq:
     name: CSV and BullMQ Tests
@@ -181,9 +181,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'pnpm'
@@ -217,9 +217,9 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'pnpm'

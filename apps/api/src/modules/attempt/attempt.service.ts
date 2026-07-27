@@ -25,11 +25,13 @@ export interface UpdateAttemptDto {
   endedAt?: Date;
 }
 
+type AttemptResult = Record<string, unknown>;
+
 @Injectable()
 export class AttemptService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(tenantId: string, dto: CreateAttemptDto): Promise<any> {
+  async create(tenantId: string, dto: CreateAttemptDto): Promise<AttemptResult> {
     const lead = await this.prisma.lead.findFirst({
       where: { tenantId, id: dto.leadId, deletedAt: null },
     });
@@ -84,7 +86,7 @@ export class AttemptService {
     return attempt;
   }
 
-  async findById(tenantId: string, id: string): Promise<any> {
+  async findById(tenantId: string, id: string): Promise<AttemptResult> {
     const attempt = await this.prisma.leadAttempt.findFirst({
       where: { tenantId, id },
       include: {
@@ -102,7 +104,7 @@ export class AttemptService {
     return attempt;
   }
 
-  async findByLead(tenantId: string, leadId: string, params: { skip?: number; take?: number }): Promise<any> {
+  async findByLead(tenantId: string, leadId: string, params: { skip?: number; take?: number }): Promise<AttemptResult> {
     const lead = await this.prisma.lead.findFirst({
       where: { tenantId, id: leadId, deletedAt: null },
     });
@@ -129,7 +131,7 @@ export class AttemptService {
     return { attempts, total };
   }
 
-  async findByCampaign(tenantId: string, campaignId: string, params: { skip?: number; take?: number }): Promise<any> {
+  async findByCampaign(tenantId: string, campaignId: string, params: { skip?: number; take?: number }): Promise<AttemptResult> {
     const campaign = await this.prisma.campaign.findFirst({
       where: { tenantId, id: campaignId },
     });
@@ -156,7 +158,7 @@ export class AttemptService {
     return { attempts, total };
   }
 
-  async update(tenantId: string, id: string, dto: UpdateAttemptDto): Promise<any> {
+  async update(tenantId: string, id: string, dto: UpdateAttemptDto): Promise<AttemptResult> {
     const attempt = await this.findById(tenantId, id);
 
     if (attempt.endedAt) {
@@ -174,7 +176,7 @@ export class AttemptService {
     return updated;
   }
 
-  async complete(tenantId: string, id: string, dto: UpdateAttemptDto): Promise<any> {
+  async complete(tenantId: string, id: string, dto: UpdateAttemptDto): Promise<AttemptResult> {
     const attempt = await this.findById(tenantId, id);
 
     if (attempt.endedAt) {
@@ -192,7 +194,7 @@ export class AttemptService {
     return updated;
   }
 
-  async getAttemptStatistics(tenantId: string, leadId: string): Promise<any> {
+  async getAttemptStatistics(tenantId: string, leadId: string): Promise<AttemptResult> {
     const lead = await this.prisma.lead.findFirst({
       where: { tenantId, id: leadId, deletedAt: null },
     });
@@ -219,7 +221,7 @@ export class AttemptService {
     };
   }
 
-  async getCampaignStatistics(tenantId: string, campaignId: string): Promise<any> {
+  async getCampaignStatistics(tenantId: string, campaignId: string): Promise<AttemptResult> {
     const campaign = await this.prisma.campaign.findFirst({
       where: { tenantId, id: campaignId },
     });

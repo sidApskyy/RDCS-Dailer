@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Headers, Get, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import type { Request } from 'express';
 
 import { AuthService, TokenPair, SessionInfo } from './auth.service';
 import { CurrentUser, CurrentUserPayload } from './decorators/current-user.decorator';
@@ -22,8 +23,8 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Req() req: Request,
   ): Promise<TokenPair> {
-    const ipAddress = (req as any).ip;
-    const userAgent = (req as any).headers['user-agent'];
+    const ipAddress = req.ip;
+    const userAgent = req.headers['user-agent'];
     return this.authService.login(tenantId, dto, ipAddress, userAgent);
   }
 
