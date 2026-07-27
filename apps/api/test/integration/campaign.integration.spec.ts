@@ -125,7 +125,7 @@ describe('Campaign Integration Tests', () => {
       const campaigns = await service.findAll(tenant.id, {});
 
       expect(campaigns).toBeDefined();
-      expect(campaigns.length).toBeGreaterThanOrEqual(2);
+      expect(campaigns.campaigns.length).toBeGreaterThanOrEqual(2);
     });
 
     it('should update a campaign', async () => {
@@ -187,8 +187,7 @@ describe('Campaign Integration Tests', () => {
 
       await service.delete(tenant.id, created.id);
 
-      const found = await service.findById(tenant.id, created.id);
-      expect(found).toBeNull();
+      await expect(service.findById(tenant.id, created.id)).rejects.toThrow('Campaign not found');
     });
   });
 

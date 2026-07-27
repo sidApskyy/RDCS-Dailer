@@ -176,7 +176,7 @@ describe('Lead Integration Tests', () => {
       const leads = await service.findAll(tenant.id, {});
 
       expect(leads).toBeDefined();
-      expect(leads.length).toBeGreaterThanOrEqual(2);
+      expect(leads.leads.length).toBeGreaterThanOrEqual(2);
     });
 
     it('should update a lead', async () => {
@@ -270,8 +270,7 @@ describe('Lead Integration Tests', () => {
 
       await service.delete(tenant.id, created.id, user.id);
 
-      const found = await service.findById(tenant.id, created.id);
-      expect(found).toBeNull();
+      await expect(service.findById(tenant.id, created.id)).rejects.toThrow('Lead not found');
     });
   });
 

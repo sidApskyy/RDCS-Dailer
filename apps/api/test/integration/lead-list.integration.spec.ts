@@ -111,7 +111,7 @@ describe('Lead List Integration Tests', () => {
       const leadLists = await service.findAll(tenant.id, {});
 
       expect(leadLists).toBeDefined();
-      expect(leadLists.length).toBeGreaterThanOrEqual(2);
+      expect(leadLists.leadLists.length).toBeGreaterThanOrEqual(2);
     });
 
     it('should update a lead list', async () => {
@@ -165,8 +165,7 @@ describe('Lead List Integration Tests', () => {
 
       await service.delete(tenant.id, created.id);
 
-      const found = await service.findById(tenant.id, created.id);
-      expect(found).toBeNull();
+      await expect(service.findById(tenant.id, created.id)).rejects.toThrow('Lead list not found');
     });
   });
 
