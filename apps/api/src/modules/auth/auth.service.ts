@@ -3,9 +3,8 @@ import { createHash } from 'crypto';
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-
 import { Prisma } from '@rdcs/database';
+import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
