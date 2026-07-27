@@ -10,6 +10,7 @@ export class TestRedis {
 
   constructor() {
     this.client = new Redis({
+      lazyConnect: true,
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
       db: parseInt(process.env.REDIS_TEST_DB || '1'), // Use separate DB for tests

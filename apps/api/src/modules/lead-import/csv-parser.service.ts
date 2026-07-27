@@ -38,12 +38,10 @@ export class CsvParserService {
     return rows;
   }
 
-  getHeaders(filePath: string): string[] {
-    if (!fs.existsSync(filePath)) {
-      throw new Error('File does not exist');
-    }
-
-    const content = fs.readFileSync(filePath, 'utf-8');
+  getHeaders(filePathOrContent: string): string[] {
+    const content = fs.existsSync(filePathOrContent)
+      ? fs.readFileSync(filePathOrContent, 'utf-8')
+      : filePathOrContent;
     const lines = content.split('\n').filter((line: string) => line.trim());
 
     if (lines.length === 0) return [];

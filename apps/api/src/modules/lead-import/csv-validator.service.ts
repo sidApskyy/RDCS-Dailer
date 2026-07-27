@@ -100,10 +100,9 @@ export class CsvValidatorService {
   }
 
   private isValidTimezone(timezone: string): boolean {
-    // Basic IANA timezone validation
     try {
-      // Check if it matches IANA timezone pattern
-      return /^[A-Za-z]+\/[A-Za-z_]+$/.test(timezone);
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();
+      return true;
     } catch {
       return false;
     }
