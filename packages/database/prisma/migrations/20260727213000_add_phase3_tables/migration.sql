@@ -1,4 +1,4 @@
-﻿-- Align the original session table with the current Prisma schema
+-- Align the original session table with the current Prisma schema
 ALTER TABLE "sessions" RENAME COLUMN "refresh_token" TO "refresh_token_hash";
 DROP INDEX IF EXISTS "sessions_refresh_token_key";
 DROP INDEX IF EXISTS "sessions_refresh_token_idx";
