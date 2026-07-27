@@ -45,7 +45,7 @@ describe('CallingWindowService tenant isolation', () => {
     const prisma = createPrismaMock({
       id: 'win-1', tenantId: 'tenant-1', name: 'Window', description: null, dayOfWeek: -1,
       startTime: '09:00', endTime: '17:00', timezone: 'UTC', isActive: true,
-      createdAt: new Date(), updatedAt: new Date(),
+      createdAt: new Date(),
     });
     const service = new CallingWindowService(prisma, timezoneMock);
 

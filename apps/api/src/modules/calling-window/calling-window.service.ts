@@ -33,7 +33,6 @@ export interface CallingWindowRecord {
   timezone: string;
   isActive: boolean;
   createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface WindowCheckResult {
