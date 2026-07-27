@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
+import { Prisma } from '@rdcs/database';
+
 import { PrismaService } from '../../prisma/prisma.service';
 
 import { LoginDto } from './dto/login.dto';
@@ -258,7 +260,7 @@ export class AuthService {
         refreshTokenHash,
         ipAddress,
         userAgent,
-        deviceInfo: { type: this.detectDeviceType(userAgent) } as any,
+        deviceInfo: { type: this.detectDeviceType(userAgent) },
         expiresAt,
       },
     });
@@ -300,7 +302,7 @@ export class AuthService {
     action: string,
     resource: string,
     resourceId: string | null,
-    metadata?: Record<string, unknown>,
+    metadata?: Prisma.InputJsonObject,
   ): Promise<void> {
     await this.prisma.audit.create({
       data: {
@@ -309,7 +311,7 @@ export class AuthService {
         action,
         resource,
         resourceId,
-        metadata: metadata as any,
+        metadata,
       },
     });
   }

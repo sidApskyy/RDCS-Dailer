@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@rdcs/database';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -22,11 +23,13 @@ export interface UpdateCallbackDto {
   status?: 'pending' | 'completed' | 'cancelled' | 'missed';
 }
 
+type CallbackResult = Record<string, unknown>;
+
 @Injectable()
 export class CallbackService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(tenantId: string, dto: CreateCallbackDto, userId: string): Promise<any> {
+  async create(tenantId: string, dto: CreateCallbackDto, userId: string): Promise<CallbackResult> {
     const lead = await this.prisma.lead.findFirst({
       where: { tenantId, id: dto.leadId, deletedAt: null },
     });
@@ -89,7 +92,7 @@ export class CallbackService {
     return callback;
   }
 
-  async findById(tenantId: string, id: string): Promise<any> {
+  async findById(tenantId: string, id: string): Promise<CallbackResult> {
     const callback = await this.prisma.callback.findFirst({
       where: { tenantId, id },
       include: {
@@ -108,8 +111,8 @@ export class CallbackService {
     return callback;
   }
 
-  async findAll(tenantId: string, params: { status?: string; assignedTo?: string; skip?: number; take?: number }): Promise<any> {
-    const where: any = { tenantId };
+  async findAll(tenantId: string, params: { status?: string; assignedTo?: string; skip?: number; take?: number }): Promise<CallbackResult> {
+    const where: Prisma.CallbackWhereInput = { tenantId };
     if (params.status) where.status = params.status;
     if (params.assignedTo) where.assignedTo = params.assignedTo;
 
@@ -131,8 +134,8 @@ export class CallbackService {
     return { callbacks, total };
   }
 
-  async getDueCallbacks(tenantId: string, params: { assignedTo?: string; skip?: number; take?: number }): Promise<any> {
-    const where: any = {
+  async getDueCallbacks(tenantId: string, params: { assignedTo?: string; skip?: number; take?: number }): Promise<CallbackResult> {
+    const where: Prisma.CallbackWhereInput = {
       tenantId,
       status: 'pending',
       scheduledFor: { lte: new Date() },
@@ -157,7 +160,7 @@ export class CallbackService {
     return { callbacks, total };
   }
 
-  async update(tenantId: string, id: string, dto: UpdateCallbackDto): Promise<any> {
+  async update(tenantId: string, id: string, dto: UpdateCallbackDto): Promise<CallbackResult> {
     const callback = await this.findById(tenantId, id);
 
     if (callback.status === 'completed' || callback.status === 'cancelled') {
@@ -172,7 +175,7 @@ export class CallbackService {
     return updated;
   }
 
-  async complete(tenantId: string, id: string): Promise<any> {
+  async complete(tenantId: string, id: string): Promise<CallbackResult> {
     const callback = await this.findById(tenantId, id);
 
     if (callback.status !== 'pending') {
@@ -190,7 +193,7 @@ export class CallbackService {
     return updated;
   }
 
-  async cancel(tenantId: string, id: string): Promise<any> {
+  async cancel(tenantId: string, id: string): Promise<CallbackResult> {
     const callback = await this.findById(tenantId, id);
 
     if (callback.status === 'completed' || callback.status === 'cancelled') {
@@ -205,7 +208,7 @@ export class CallbackService {
     return updated;
   }
 
-  async delete(tenantId: string, id: string): Promise<any> {
+  async delete(tenantId: string, id: string): Promise<CallbackResult> {
     const callback = await this.findById(tenantId, id);
 
     if (callback.status === 'completed') {
