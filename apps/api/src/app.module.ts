@@ -21,6 +21,7 @@ import { LeadModule } from './modules/lead/lead.module';
 import { LeadImportModule } from './modules/lead-import/lead-import.module';
 import { LeadListModule } from './modules/lead-list/lead-list.module';
 import { RbacModule } from './modules/rbac/rbac.module';
+import { TelephonyModule } from './modules/telephony/telephony.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -43,6 +44,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CallingWindowModule,
     AttemptModule,
     ComplianceModule,
+    TelephonyModule,
   ],
   controllers: [AppController],
   providers: [

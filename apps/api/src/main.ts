@@ -7,6 +7,7 @@ import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { LoggerService } from './common/logger/logger.service';
 import { CorrelationMiddleware } from './common/middleware/correlation.middleware';
 import { validateEnv } from './common/validation/env.validation';
+import { TelephonySocketService } from './modules/telephony/telephony-socket.service';
 
 async function bootstrap() {
   // Validate environment variables
@@ -42,6 +43,7 @@ async function bootstrap() {
 
   const port = process.env.API_PORT || 3001;
   await app.listen(port);
+  app.get(TelephonySocketService).attach(app.getHttpServer());
   logger.log(`RDCS API running on http://localhost:${port}`, 'Bootstrap');
 }
 

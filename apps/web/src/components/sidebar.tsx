@@ -20,6 +20,7 @@ import { cn } from '../lib/utils';
 const navigation: Array<{ name: string; href: string; icon: any }> = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Campaigns', href: '/campaigns', icon: Phone },
+  { name: 'Manual Calling', href: '/calls', icon: Phone },
   { name: 'Lead Lists', href: '/lead-lists', icon: FileSpreadsheet },
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'CSV Import', href: '/import', icon: List },

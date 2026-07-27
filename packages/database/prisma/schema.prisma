@@ -41,6 +41,8 @@ model Tenant {
   holidayCalendars HolidayCalendar[]
   leadAttempts  LeadAttempt[]
   leads Lead[]
+  callSessions CallSession[]
+  agentPresences AgentPresence[]
 
   @@index([slug])
   @@index([status])
@@ -118,6 +120,8 @@ model User {
   createdDNCLists DNCList[] @relation("DNCCreator")
   addedDNCEntries DNCEntry[] @relation("DNCAdder")
   leadAttempts LeadAttempt[] @relation("AttemptAgent")
+  callSessions CallSession[]
+  agentPresences AgentPresence[]
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
@@ -343,6 +347,7 @@ model Campaign {
   attempts     LeadAttempt[]
   callbacks    Callback[]
   leadDispositions LeadDisposition[]
+  callSessions CallSession[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -529,6 +534,7 @@ model Lead {
   attempts     LeadAttempt[]
   callbacks    Callback[]
   dispositions LeadDisposition[]
+  callSessions CallSession[]
 
   @@index([tenantId, status])
   @@index([tenantId, campaignId])
@@ -606,6 +612,7 @@ model Disposition {
   campaigns   CampaignDisposition[]
   leadDispositions LeadDisposition[]
   leadAttempts LeadAttempt[]
+  callSessions CallSession[]
 
   @@index([tenantId, code])
   @@index([tenantId, category])
@@ -811,4 +818,52 @@ model LeadEligibilityDecision {
   @@index([tenantId, campaignId])
   @@index([evaluatedAt])
   @@map("lead_eligibility_decisions")
+}
+
+model CallSession {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  agentId           String   @map("agent_id")
+  leadId            String   @map("lead_id")
+  campaignId        String?  @map("campaign_id")
+  phoneNumber       String   @map("phone_number")
+  state             String   @default("queued")
+  terminationReason String?  @map("termination_reason")
+  dispositionId     String?  @map("disposition_id")
+  providerRef       String?  @map("provider_ref")
+  queuedAt          DateTime @default(now()) @map("queued_at")
+  dialingAt         DateTime? @map("dialing_at")
+  ringingAt         DateTime? @map("ringing_at")
+  connectedAt       DateTime? @map("connected_at")
+  completedAt       DateTime? @map("completed_at")
+  duration          Int?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent       User         @relation(fields: [agentId], references: [id])
+  lead        Lead         @relation(fields: [leadId], references: [id])
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  disposition Disposition? @relation(fields: [dispositionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, agentId, state])
+  @@index([tenantId, leadId])
+  @@index([tenantId, createdAt])
+  @@map("call_sessions")
+}
+
+model AgentPresence {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  agentId   String   @map("agent_id")
+  status    String   @default("offline")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  User   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, agentId])
+  @@index([tenantId, status])
+  @@map("agent_presences")
 }
