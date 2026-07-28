@@ -78,7 +78,7 @@ export class TelephonyService {
       });
       await tx.audit.create({ data: { tenantId, userId: agentId, action: 'call.created', resource: 'CallSession', resourceId: created.id, metadata: { leadId: lead.id, phoneNumber: dto.phoneNumber } } });
       return created;
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code)) {
         throw new ConflictException('Agent already has an active call');
