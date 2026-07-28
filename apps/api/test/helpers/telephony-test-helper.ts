@@ -117,8 +117,8 @@ export async function seedAgentWithLead(opts: {
   for (let i = 0; i < perms.length; i++) {
     const p = perms[i];
     const permId = `perm-${opts.userId}-${i}`;
-    await testDb.seedPermission({ id: permId, resource: p.resource, action: p.action, scope: p.scope, tenantId: opts.tenantId });
-    await testDb.seedRolePermission({ roleId, permissionId: permId });
+    const perm = await testDb.seedPermission({ id: permId, resource: p.resource, action: p.action, scope: p.scope, tenantId: opts.tenantId });
+    await testDb.seedRolePermission({ roleId, permissionId: perm.id });
   }
   await testDb.seedUserRole({ userId: opts.userId, roleId });
 

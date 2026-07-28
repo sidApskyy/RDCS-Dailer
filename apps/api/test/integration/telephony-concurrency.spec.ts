@@ -97,8 +97,8 @@ describe('Phase 4 — Telephony Concurrency Tests', () => {
     ];
     for (let i = 0; i < perms.length; i++) {
       const permId = `perm-agent-2-${i}`;
-      await testDb.seedPermission({ id: permId, resource: perms[i].resource, action: perms[i].action, scope: perms[i].scope, tenantId: 'tenant-1' });
-      await testDb.seedRolePermission({ roleId, permissionId: permId });
+      const perm = await testDb.seedPermission({ id: permId, resource: perms[i].resource, action: perms[i].action, scope: perms[i].scope, tenantId: 'tenant-1' });
+      await testDb.seedRolePermission({ roleId, permissionId: perm.id });
     }
     await testDb.seedUserRole({ userId: 'agent-2', roleId });
     await prisma.agentPresence.create({ data: { tenantId: 'tenant-1', agentId: 'agent-2', status: 'available' } });

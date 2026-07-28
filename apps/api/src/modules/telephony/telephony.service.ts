@@ -109,10 +109,12 @@ export class TelephonyService {
     if (call.agentId !== agentId) throw new NotFoundException('Call not found');
     if (terminalStates.has(call.state as CallState)) {
       await this.waitForEvents(id);
+      await this.setPresence(tenantId, agentId, AgentPresence.WrapUp);
       throw new BadRequestException('Call is already terminated');
     }
     await this.adapter.cancel(id);
     await this.waitForEvents(id);
+    await this.setPresence(tenantId, agentId, AgentPresence.WrapUp);
     return this.getCall(tenantId, id);
   }
 

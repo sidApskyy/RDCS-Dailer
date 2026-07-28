@@ -33,8 +33,8 @@ describe('Phase 4 — Telephony RBAC Scope Tests', () => {
     for (let i = 0; i < perms.length; i++) {
       const p = perms[i];
       const permId = `perm-${userId}-${i}`;
-      await testDb.seedPermission({ id: permId, resource: p.resource, action: p.action, scope: p.scope, tenantId });
-      await testDb.seedRolePermission({ roleId, permissionId: permId });
+      const perm = await testDb.seedPermission({ id: permId, resource: p.resource, action: p.action, scope: p.scope, tenantId });
+      await testDb.seedRolePermission({ roleId, permissionId: perm.id });
     }
     await testDb.seedUserRole({ userId, roleId });
     await testDb.getPrisma().agentPresence.create({ data: { tenantId, agentId: userId, status: 'available' } });
