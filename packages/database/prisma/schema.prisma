@@ -790,6 +790,7 @@ model LeadAttempt {
   campaign    Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   disposition Disposition?    @relation(fields: [dispositionId], references: [id])
   agent       User?           @relation("AttemptAgent", fields: [agentId], references: [id])
+  callSession CallSession?
 
   @@index([tenantId, leadId])
   @@index([tenantId, campaignId])
@@ -830,6 +831,7 @@ model CallSession {
   state             String   @default("queued")
   terminationReason String?  @map("termination_reason")
   dispositionId     String?  @map("disposition_id")
+  attemptId         String?  @unique @map("attempt_id")
   providerRef       String?  @map("provider_ref")
   queuedAt          DateTime @default(now()) @map("queued_at")
   dialingAt         DateTime? @map("dialing_at")
@@ -845,6 +847,7 @@ model CallSession {
   lead        Lead         @relation(fields: [leadId], references: [id])
   campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   disposition Disposition? @relation(fields: [dispositionId], references: [id], onDelete: SetNull)
+  attempt     LeadAttempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, agentId, state])
   @@index([tenantId, leadId])

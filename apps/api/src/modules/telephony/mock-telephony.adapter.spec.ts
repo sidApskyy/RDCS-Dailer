@@ -13,6 +13,19 @@ describe('MockTelephonyAdapter', () => {
     jest.useRealTimers();
   });
 
+  it.each([
+    ['busy', CallState.Busy], ['no_answer', CallState.NoAnswer], ['failed', CallState.Failed], ['timeout', CallState.Timeout],
+  ] as const)('supports deterministic %s outcomes', async (outcome, expectedState) => {
+    jest.useFakeTimers();
+    const adapter = new MockTelephonyAdapter({ outcome, latencyMs: 10 });
+    const events: CallState[] = [];
+    await adapter.dial({ callId: `call-${outcome}`, tenantId: 'tenant-1', agentId: 'agent-1', leadId: 'lead-1', phoneNumber: '+10000000000' });
+    adapter.events(`call-${outcome}`).subscribe((event) => events.push(event.state));
+    jest.advanceTimersByTime(130);
+    expect(events).toContain(expectedState);
+    jest.useRealTimers();
+  });
+
   it('cancels an active call', async () => {
     const adapter = new MockTelephonyAdapter();
     await adapter.dial({ callId: 'call-2', tenantId: 'tenant-1', agentId: 'agent-1', leadId: 'lead-1', phoneNumber: '+10000000000' });

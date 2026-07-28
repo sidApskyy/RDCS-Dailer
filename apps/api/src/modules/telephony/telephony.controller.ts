@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { TenantIsolationGuard } from '../../common/guards/tenant-isolation.guard';
@@ -51,8 +51,8 @@ export class TelephonyController {
   @Put('agent/status')
   @RequirePermission('calls', 'update')
   setStatus(@CurrentUser() user: CurrentUserPayload, @Body() dto: UpdatePresenceDto) {
-    if (!Object.values(AgentPresence).includes(dto.status as AgentPresence)) throw new Error('Invalid agent status');
-    return this.telephony.setPresence(user.tenantId, user.userId, dto.status as AgentPresence);
+    if (!Object.values(AgentPresence).includes(dto.status as AgentPresence)) throw new BadRequestException('Invalid agent status');
+    return this.telephony.setAgentStatus(user.tenantId, user.userId, dto.status as AgentPresence);
   }
 
   @Get('agent/status')

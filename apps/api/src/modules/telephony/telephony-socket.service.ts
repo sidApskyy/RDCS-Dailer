@@ -15,7 +15,8 @@ export class TelephonySocketService implements OnModuleDestroy {
   constructor(private readonly auth: AuthService, private readonly events: TelephonyEvents) {}
 
   attach(httpServer: HttpServer): void {
-    this.server = new Server(httpServer, { path: '/socket.io', cors: { origin: true, credentials: true } });
+    const allowedOrigins = (process.env.WEB_ORIGINS || 'http://localhost:3000').split(',').map((origin) => origin.trim()).filter(Boolean);
+    this.server = new Server(httpServer, { path: '/socket.io', cors: { origin: allowedOrigins, credentials: true } });
     this.server.use(async (socket, next) => {
       try {
         const token = String(socket.handshake.auth?.token || socket.handshake.headers.authorization || '').replace(/^Bearer\s+/i, '');

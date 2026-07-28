@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-
+import { Prisma } from '@rdcs/database';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { ComplianceEngineService } from '../compliance/compliance-engine.service';
@@ -17,23 +17,17 @@ const terminalStates = new Set<CallState>([
 @Injectable()
 export class TelephonyService {
   constructor(
-    private readonly prisma: PrismaService,
+      private readonly prisma: PrismaService,
     private readonly compliance: ComplianceEngineService,
     @Inject(TELEPHONY_ADAPTER) private readonly adapter: TelephonyAdapter,
     private readonly events: TelephonyEvents,
   ) {}
 
+  private readonly eventQueues = new Map<string, Promise<void>>();
+
   async manualDial(tenantId: string, agentId: string, dto: ManualDialDto): Promise<unknown> {
     const agent = await this.prisma.user.findFirst({ where: { tenantId, id: agentId, deletedAt: null } });
     if (!agent) throw new NotFoundException('Agent not found');
-
-    const presence = await this.prisma.agentPresence.findUnique({ where: { tenantId_agentId: { tenantId, agentId } } });
-    if (presence?.status !== AgentPresence.Available) throw new ConflictException('Agent is not available for manual dialing');
-
-    const activeCall = await this.prisma.callSession.findFirst({
-      where: { tenantId, agentId, state: { in: [CallState.Queued, CallState.Dialing, CallState.Ringing, CallState.Connected, CallState.OnHold] } },
-    });
-    if (activeCall) throw new ConflictException('Agent already has an active call');
 
     const lead = await this.prisma.lead.findFirst({
       where: { tenantId, id: dto.leadId, deletedAt: null },
@@ -55,23 +49,56 @@ export class TelephonyService {
       campaignId: dto.campaignId,
       timezone: lead.timezone,
     });
-    if (!eligibility.eligible) throw new BadRequestException(`Lead is not eligible: ${eligibility.reason}`);
+    if (!eligibility.eligible) {
+      await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'call.compliance_blocked', resource: 'Lead', resourceId: lead.id, metadata: { phoneNumber: dto.phoneNumber, reason: eligibility.reason, rule: eligibility.rule } } });
+      throw new BadRequestException(`Lead is not eligible: ${eligibility.reason}`);
+    }
 
-    const call = await this.prisma.callSession.create({
-      data: { tenantId, agentId, leadId: lead.id, campaignId: dto.campaignId, phoneNumber: dto.phoneNumber, state: CallState.Queued },
-    });
-    await this.setPresence(tenantId, agentId, AgentPresence.Busy);
+    let call;
+    try {
+      call = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.agentPresence.updateMany({
+        where: { tenantId, agentId, status: AgentPresence.Available },
+        data: { status: AgentPresence.Busy },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Agent is not available for manual dialing');
+
+      const active = await tx.callSession.findFirst({
+        where: { tenantId, agentId, state: { in: [CallState.Queued, CallState.Dialing, CallState.Ringing, CallState.Connected, CallState.OnHold] } },
+        select: { id: true },
+      });
+      if (active) throw new ConflictException('Agent already has an active call');
+
+      const previousAttempt = await tx.leadAttempt.findFirst({ where: { tenantId, leadId: lead.id }, orderBy: { attemptNumber: 'desc' }, select: { attemptNumber: true } });
+      const attempt = await tx.leadAttempt.create({
+        data: { tenantId, agentId, leadId: lead.id, campaignId: dto.campaignId, phoneNumber: dto.phoneNumber, attemptNumber: (previousAttempt?.attemptNumber || 0) + 1, source: 'manual', startedAt: new Date() },
+      });
+      const created = await tx.callSession.create({
+        data: { tenantId, agentId, leadId: lead.id, campaignId: dto.campaignId, phoneNumber: dto.phoneNumber, attemptId: attempt.id, state: CallState.Queued },
+      });
+      await tx.audit.create({ data: { tenantId, userId: agentId, action: 'call.created', resource: 'CallSession', resourceId: created.id, metadata: { leadId: lead.id, phoneNumber: dto.phoneNumber } } });
+      return created;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code)) {
+        throw new ConflictException('Agent already has an active call');
+      }
+      throw error;
+    }
     this.emit(call.id, tenantId, agentId, CallState.Queued);
-    await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'call.created', resource: 'CallSession', resourceId: call.id, metadata: { leadId: lead.id, phoneNumber: dto.phoneNumber } } });
 
-    const subscription = this.adapter.events(call.id).subscribe((event) => { void this.handleEvent(event); });
+    const subscription = this.adapter.events(call.id).subscribe((event) => { this.enqueueEvent(event); });
     try {
       const result = await this.adapter.dial({ callId: call.id, tenantId, agentId, leadId: lead.id, campaignId: dto.campaignId, phoneNumber: dto.phoneNumber });
       await this.prisma.callSession.update({ where: { id: call.id }, data: { providerRef: result.providerRef } });
     } catch (error) {
       subscription.unsubscribe();
+      const completedAt = new Date();
+      const reason = error instanceof Error ? error.message : 'adapter failure';
+      await this.prisma.callSession.update({ where: { id: call.id }, data: { state: CallState.Failed, terminationReason: reason, completedAt } });
+      if (call.attemptId) await this.prisma.leadAttempt.update({ where: { id: call.attemptId }, data: { outcome: CallState.Failed, endedAt: completedAt } });
+      await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'call.failed', resource: 'CallSession', resourceId: call.id, metadata: { reason } } });
       await this.setPresence(tenantId, agentId, AgentPresence.WrapUp);
-      await this.prisma.callSession.update({ where: { id: call.id }, data: { state: CallState.Failed, terminationReason: error instanceof Error ? error.message : 'adapter failure', completedAt: new Date() } });
       throw error;
     }
     return this.getCall(tenantId, call.id);
@@ -82,6 +109,7 @@ export class TelephonyService {
     if (call.agentId !== agentId) throw new NotFoundException('Call not found');
     if (terminalStates.has(call.state as CallState)) throw new BadRequestException('Call is already terminated');
     await this.adapter.cancel(id);
+    await this.waitForEvents(id);
     return this.getCall(tenantId, id);
   }
 
@@ -101,8 +129,14 @@ export class TelephonyService {
 
   async setPresence(tenantId: string, agentId: string, status: AgentPresence) {
     const presence = await this.prisma.agentPresence.upsert({ where: { tenantId_agentId: { tenantId, agentId } }, update: { status }, create: { tenantId, agentId, status } });
+    await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'agent.status_changed', resource: 'AgentPresence', resourceId: presence.id, metadata: { status } } });
     this.events.emit({ type: 'agent.status_changed', callId: '', tenantId, agentId, state: CallState.Idle, occurredAt: new Date() });
     return presence;
+  }
+
+  async setAgentStatus(tenantId: string, agentId: string, status: AgentPresence) {
+    if ([AgentPresence.Busy, AgentPresence.OnCall].includes(status)) throw new BadRequestException('Busy states are managed by call lifecycle');
+    return this.setPresence(tenantId, agentId, status);
   }
 
   async getPresence(tenantId: string, agentId: string) {
@@ -112,10 +146,27 @@ export class TelephonyService {
   async dispose(tenantId: string, agentId: string, id: string, dispositionId: string) {
     const call = await this.getCall(tenantId, id);
     if (call.agentId !== agentId) throw new NotFoundException('Call not found');
-    if (!terminalStates.has(call.state as CallState)) throw new BadRequestException('Call must be terminated before disposition');
-    const updated = await this.prisma.callSession.update({ where: { id }, data: { dispositionId, state: CallState.Disposed } });
+    if (!terminalStates.has(call.state as CallState) || call.state === CallState.Disposed) throw new BadRequestException('Call must be terminated before disposition');
+    const updated = await this.prisma.callSession.updateMany({ where: { id, tenantId, agentId, state: { in: [CallState.Completed, CallState.Busy, CallState.Failed, CallState.Cancelled, CallState.NoAnswer, CallState.Timeout] } }, data: { dispositionId, state: CallState.Disposed } });
+    if (updated.count !== 1) throw new ConflictException('Call disposition was already submitted');
+    const disposed = await this.prisma.callSession.findFirst({ where: { id, tenantId }, select: { attemptId: true } });
+    if (disposed?.attemptId) await this.prisma.leadAttempt.update({ where: { id: disposed.attemptId }, data: { dispositionId, endedAt: new Date() } });
+    await this.setPresence(tenantId, agentId, AgentPresence.Available);
     await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'call.dispositioned', resource: 'CallSession', resourceId: id, metadata: { dispositionId } } });
-    return updated;
+    return this.getCall(tenantId, id);
+  }
+
+  private enqueueEvent(event: import('./telephony.types').CallEvent): void {
+    const previous = this.eventQueues.get(event.callId) || Promise.resolve();
+    const next = previous.then(() => this.handleEvent(event)).catch(() => undefined);
+    this.eventQueues.set(event.callId, next);
+    void next.finally(() => {
+      if (this.eventQueues.get(event.callId) === next) this.eventQueues.delete(event.callId);
+    });
+  }
+
+  private async waitForEvents(callId: string): Promise<void> {
+    await this.eventQueues.get(callId);
   }
 
   private async handleEvent(event: import('./telephony.types').CallEvent): Promise<void> {
@@ -131,6 +182,9 @@ export class TelephonyService {
     if (terminalStates.has(event.state)) { data.completedAt = now; data.terminationReason = event.state; }
     if (event.state === CallState.Completed && call.connectedAt) data.duration = Math.max(0, Math.floor((now.getTime() - call.connectedAt.getTime()) / 1000));
     await this.prisma.callSession.update({ where: { id: call.id }, data });
+    if (terminalStates.has(event.state) && call.attemptId) {
+      await this.prisma.leadAttempt.update({ where: { id: call.attemptId }, data: { outcome: event.state, duration: typeof data.duration === 'number' ? data.duration : undefined, endedAt: now, providerRef: event.providerRef } });
+    }
     if (terminalStates.has(event.state)) {
       await this.prisma.audit.create({ data: { tenantId: call.tenantId, userId: call.agentId, action: `call.${event.state}`, resource: 'CallSession', resourceId: call.id, metadata: { providerRef: event.providerRef } } });
     }

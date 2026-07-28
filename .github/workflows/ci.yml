@@ -98,6 +98,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret-key
+          WEB_ORIGINS: http://localhost:3000
         run: pnpm --filter @rdcs/api exec jest test/integration --runInBand
 
   test-security:
@@ -152,6 +153,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           JWT_SECRET: test-secret-key
+          WEB_ORIGINS: http://localhost:3000
         run: pnpm --filter @rdcs/api exec jest test/security --runInBand
 
   test-csv-bullmq:
