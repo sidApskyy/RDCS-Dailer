@@ -175,7 +175,7 @@ export async function seedAgentWithLead(opts: {
       data: {
         id: opts.dispositionId,
         tenantId: opts.tenantId,
-        code: 'test-disp',
+        code: `disp-${opts.dispositionId}`,
         name: 'Test Disposition',
         category: 'neutral',
         outcome: 'terminal',
@@ -220,11 +220,11 @@ export async function seedAgentWithLead(opts: {
 }
 
 export function authRequest(app: INestApplication, token: string) {
-  return request(app.getHttpServer()).set('Authorization', `Bearer ${token}`);
+  return request.agent(app.getHttpServer()).set('Authorization', `Bearer ${token}`);
 }
 
 export function unauthRequest(app: INestApplication) {
-  return request(app.getHttpServer());
+  return request.agent(app.getHttpServer());
 }
 
 export { testDb, testAuth };
