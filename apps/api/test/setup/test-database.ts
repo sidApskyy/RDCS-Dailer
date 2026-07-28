@@ -29,6 +29,8 @@ export class TestDatabase {
   async clean() {
     // Clean all tables in correct order respecting foreign keys
     const tables = [
+      'call_sessions',
+      'agent_presences',
       'lead_attempts',
       'lead_eligibility_decisions',
       'lead_dispositions',
