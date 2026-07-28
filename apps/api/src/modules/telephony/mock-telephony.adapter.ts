@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 
 import { TelephonyAdapter } from './telephony.adapter';
@@ -11,6 +11,8 @@ export interface MockTelephonyAdapterOptions {
   latencyMs?: number;
   randomFailureRate?: number;
 }
+
+export const MOCK_TELEPHONY_OPTIONS = 'MOCK_TELEPHONY_OPTIONS';
 
 interface MockCall {
   command: CallCommand;
@@ -32,7 +34,7 @@ export class MockTelephonyAdapter implements TelephonyAdapter {
   private readonly calls = new Map<string, MockCall>();
   private readonly options: Required<MockTelephonyAdapterOptions>;
 
-  constructor(options: MockTelephonyAdapterOptions = {}) {
+  constructor(@Optional() @Inject(MOCK_TELEPHONY_OPTIONS) options: MockTelephonyAdapterOptions = {}) {
     this.options = { outcome: options.outcome || 'connected', latencyMs: options.latencyMs || 75, randomFailureRate: options.randomFailureRate || 0 };
   }
 
