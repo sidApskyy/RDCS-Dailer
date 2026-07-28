@@ -225,3 +225,168 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+  test-phase4-integration:
+    name: Phase 4 Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rdcs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:generate
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:migrate:deploy
+      - name: Seed test database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:seed
+      - name: Run Phase 4 integration tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: test-secret-key
+          WEB_ORIGINS: http://localhost:3000
+        run: pnpm --filter @rdcs/api exec jest test/integration/telephony.integration.spec.ts test/integration/telephony-concurrency.spec.ts test/integration/telephony-socket.integration.spec.ts test/integration/telephony-presence.spec.ts --runInBand
+
+  test-phase4-compliance:
+    name: Phase 4 Compliance Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rdcs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:generate
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:migrate:deploy
+      - name: Seed test database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:seed
+      - name: Run Phase 4 compliance tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: test-secret-key
+          WEB_ORIGINS: http://localhost:3000
+        run: pnpm --filter @rdcs/api exec jest test/integration/telephony-compliance.spec.ts --runInBand
+
+  test-phase4-security:
+    name: Phase 4 Security Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rdcs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:generate
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:migrate:deploy
+      - name: Seed test database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:seed
+      - name: Run Phase 4 security tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: test-secret-key
+          WEB_ORIGINS: http://localhost:3000
+        run: pnpm --filter @rdcs/api exec jest test/security/telephony-tenant-isolation.spec.ts test/security/telephony-rbac.spec.ts --runInBand
