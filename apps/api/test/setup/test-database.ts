@@ -73,7 +73,7 @@ export class TestDatabase {
     }
   }
 
-  async seedTenant(data: { id: string; name: string; slug: string }): Promise<any> {
+  async seedTenant(data: { id: string; name: string; slug: string }) {
     return this.prisma.tenant.create({
       data,
     });
@@ -87,7 +87,7 @@ export class TestDatabase {
     status: string;
     firstName?: string;
     lastName?: string;
-  }): Promise<any> {
+  }) {
     return this.prisma.user.create({
       data: {
         ...data,
@@ -97,25 +97,25 @@ export class TestDatabase {
     });
   }
 
-  async seedRole(data: { id: string; name: string; description?: string; tenantId: string }): Promise<any> {
+  async seedRole(data: { id: string; name: string; description?: string; tenantId: string }) {
     return this.prisma.role.create({
       data,
     });
   }
 
-  async seedPermission(data: { id: string; resource: string; action: string; scope: string; tenantId: string }): Promise<any> {
+  async seedPermission(data: { id: string; resource: string; action: string; scope: string; tenantId: string }) {
     return this.prisma.permission.create({
       data,
     });
   }
 
-  async seedUserRole(data: { userId: string; roleId: string }): Promise<any> {
+  async seedUserRole(data: { userId: string; roleId: string }) {
     return this.prisma.userRole.create({
       data,
     });
   }
 
-  async seedRolePermission(data: { roleId: string; permissionId: string }): Promise<any> {
+  async seedRolePermission(data: { roleId: string; permissionId: string }) {
     return this.prisma.rolePermission.create({
       data,
     });

@@ -1,18 +1,20 @@
 import { BadRequestException } from '@nestjs/common';
 
+import { PrismaService } from '../../prisma/prisma.service';
+
 import { CampaignService } from './campaign.service';
 
-function createPrismaMock(campaign: any) {
+function createPrismaMock(campaign: Record<string, unknown>) {
   return {
     campaign: {
       findFirst: jest.fn().mockResolvedValue(campaign),
-      update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ ...campaign, ...data })),
+      update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ ...campaign, ...data })),
       delete: jest.fn().mockResolvedValue({}),
     },
     audit: {
       create: jest.fn().mockResolvedValue({}),
     },
-  } as any;
+  } as unknown as PrismaService;
 }
 
 describe('CampaignService state machine', () => {

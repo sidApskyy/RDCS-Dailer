@@ -52,7 +52,7 @@ export class TestAuth {
     return this.jwtService.sign(payload, { expiresIn: '7d' });
   }
 
-  verifyToken(token: string): any {
+  verifyToken(token: string): { sub: string; tenantId: string; email?: string; roles?: string[]; type?: string } {
     return this.jwtService.verify(token);
   }
 

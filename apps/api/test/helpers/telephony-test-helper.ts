@@ -4,7 +4,6 @@ import request from 'supertest';
 
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/exceptions/http-exception.filter';
-import { CorrelationMiddleware } from '../../src/common/middleware/correlation.middleware';
 import { ComplianceEngineService, EligibilityResult } from '../../src/modules/compliance/compliance-engine.service';
 import { TelephonySocketService } from '../../src/modules/telephony/telephony-socket.service';
 import { testDb, testAuth } from '../setup';
@@ -28,9 +27,6 @@ class MockComplianceEngineService {
 export async function createTestApp(): Promise<{ app: INestApplication; module: TestingModule }> {
   const module = await Test.createTestingModule({
     imports: [AppModule],
-    providers: [
-      { provide: ComplianceEngineService, useClass: MockComplianceEngineService },
-    ],
   })
     .overrideProvider(ComplianceEngineService)
     .useClass(MockComplianceEngineService)
@@ -40,7 +36,6 @@ export async function createTestApp(): Promise<{ app: INestApplication; module: 
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.use(CorrelationMiddleware);
   await app.init();
   app.get(TelephonySocketService).attach(app.getHttpServer());
   return { app, module };
@@ -53,7 +48,6 @@ export async function createTestAppWithRealCompliance(): Promise<{ app: INestApp
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.use(CorrelationMiddleware);
   await app.init();
   app.get(TelephonySocketService).attach(app.getHttpServer());
   return { app, module };

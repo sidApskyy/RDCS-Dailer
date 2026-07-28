@@ -5,7 +5,6 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { LoggerService } from './common/logger/logger.service';
-import { CorrelationMiddleware } from './common/middleware/correlation.middleware';
 import { validateEnv } from './common/validation/env.validation';
 import { TelephonySocketService } from './modules/telephony/telephony-socket.service';
 
@@ -30,7 +29,6 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.use(CorrelationMiddleware);
 
   const config = new DocumentBuilder()
     .setTitle('RDCS API')

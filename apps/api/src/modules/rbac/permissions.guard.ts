@@ -39,7 +39,7 @@ export class PermissionsGuard implements CanActivate {
     tenantId: string,
     userId: string,
     required: PermissionTuple,
-    request: any,
+    request: { path: string; method: string },
   ): Promise<void> {
     try {
       await this.prisma.audit.create({

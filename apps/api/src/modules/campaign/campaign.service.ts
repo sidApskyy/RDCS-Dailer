@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@rdcs/database';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -12,7 +13,7 @@ export interface CreateCampaignDto {
   endDate?: Date;
   timezone?: string;
   priority?: number;
-  settings?: any;
+  settings?: Prisma.InputJsonValue;
   organizationId?: string;
 }
 
@@ -25,7 +26,7 @@ export interface UpdateCampaignDto {
   endDate?: Date;
   timezone?: string;
   priority?: number;
-  settings?: any;
+  settings?: Prisma.InputJsonValue;
   organizationId?: string;
 }
 
@@ -37,7 +38,7 @@ export interface CampaignTransitionDto {
 export class CampaignService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(tenantId: string, dto: CreateCampaignDto, userId: string): Promise<any> {
+  async create(tenantId: string, dto: CreateCampaignDto, userId: string) {
     const existing = await this.prisma.campaign.findFirst({
       where: { tenantId, slug: dto.slug },
     });
@@ -78,7 +79,7 @@ export class CampaignService {
     return campaign;
   }
 
-  async findById(tenantId: string, id: string): Promise<any> {
+  async findById(tenantId: string, id: string) {
     const campaign = await this.prisma.campaign.findFirst({
       where: { tenantId, id },
       include: {
@@ -98,7 +99,7 @@ export class CampaignService {
     return campaign;
   }
 
-  async findBySlug(tenantId: string, slug: string): Promise<any> {
+  async findBySlug(tenantId: string, slug: string) {
     const campaign = await this.prisma.campaign.findFirst({
       where: { tenantId, slug },
       include: {
@@ -118,8 +119,8 @@ export class CampaignService {
     return campaign;
   }
 
-  async findAll(tenantId: string, params: { status?: string; organizationId?: string; skip?: number; take?: number }): Promise<any> {
-    const where: any = { tenantId };
+  async findAll(tenantId: string, params: { status?: string; organizationId?: string; skip?: number; take?: number }) {
+    const where: Prisma.CampaignWhereInput = { tenantId };
     if (params.status) where.status = params.status;
     if (params.organizationId) where.organizationId = params.organizationId;
 
@@ -140,7 +141,7 @@ export class CampaignService {
     return { campaigns, total };
   }
 
-  async update(tenantId: string, id: string, dto: UpdateCampaignDto, userId: string): Promise<any> {
+  async update(tenantId: string, id: string, dto: UpdateCampaignDto, userId: string) {
     const campaign = await this.findById(tenantId, id);
 
     if (campaign.status !== 'draft') {
@@ -169,7 +170,7 @@ export class CampaignService {
     return updated;
   }
 
-  async transitionStatus(tenantId: string, id: string, dto: CampaignTransitionDto, userId: string): Promise<any> {
+  async transitionStatus(tenantId: string, id: string, dto: CampaignTransitionDto, userId: string) {
     const campaign = await this.findById(tenantId, id);
     const currentStatus = campaign.status;
     const newStatus = dto.status;
@@ -212,7 +213,7 @@ export class CampaignService {
     return transitions[current]?.includes(next) || false;
   }
 
-  async delete(tenantId: string, id: string): Promise<any> {
+  async delete(tenantId: string, id: string) {
     const campaign = await this.findById(tenantId, id);
 
     if (campaign.status !== 'draft') {
@@ -237,7 +238,7 @@ export class CampaignService {
     return { success: true };
   }
 
-  async archive(tenantId: string, id: string, userId: string): Promise<any> {
+  async archive(tenantId: string, id: string, userId: string) {
     const campaign = await this.findById(tenantId, id);
 
     if (campaign.status === 'archived') {
