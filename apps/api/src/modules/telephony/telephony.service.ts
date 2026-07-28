@@ -107,7 +107,10 @@ export class TelephonyService {
   async cancel(tenantId: string, agentId: string, id: string): Promise<unknown> {
     const call = await this.getCall(tenantId, id);
     if (call.agentId !== agentId) throw new NotFoundException('Call not found');
-    if (terminalStates.has(call.state as CallState)) throw new BadRequestException('Call is already terminated');
+    if (terminalStates.has(call.state as CallState)) {
+      await this.waitForEvents(id);
+      throw new BadRequestException('Call is already terminated');
+    }
     await this.adapter.cancel(id);
     await this.waitForEvents(id);
     return this.getCall(tenantId, id);
@@ -146,7 +149,8 @@ export class TelephonyService {
   async dispose(tenantId: string, agentId: string, id: string, dispositionId: string) {
     const call = await this.getCall(tenantId, id);
     if (call.agentId !== agentId) throw new NotFoundException('Call not found');
-    if (!terminalStates.has(call.state as CallState) || call.state === CallState.Disposed) throw new BadRequestException('Call must be terminated before disposition');
+    if (call.state === CallState.Disposed) throw new ConflictException('Call disposition was already submitted');
+    if (!terminalStates.has(call.state as CallState)) throw new BadRequestException('Call must be terminated before disposition');
     const updated = await this.prisma.callSession.updateMany({ where: { id, tenantId, agentId, state: { in: [CallState.Completed, CallState.Busy, CallState.Failed, CallState.Cancelled, CallState.NoAnswer, CallState.Timeout] } }, data: { dispositionId, state: CallState.Disposed } });
     if (updated.count !== 1) throw new ConflictException('Call disposition was already submitted');
     const disposed = await this.prisma.callSession.findFirst({ where: { id, tenantId }, select: { attemptId: true } });

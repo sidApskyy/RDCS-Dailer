@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { TenantIsolationGuard } from '../../common/guards/tenant-isolation.guard';
@@ -43,6 +43,7 @@ export class TelephonyController {
   }
 
   @Post(':id/disposition')
+  @HttpCode(200)
   @RequirePermission('calls', 'update')
   dispose(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() dto: DispositionCallDto) {
     return this.telephony.dispose(user.tenantId, user.userId, id, dto.dispositionId);

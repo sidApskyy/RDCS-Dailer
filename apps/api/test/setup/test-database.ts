@@ -104,8 +104,10 @@ export class TestDatabase {
   }
 
   async seedPermission(data: { id: string; resource: string; action: string; scope: string; tenantId: string }) {
-    return this.prisma.permission.create({
-      data,
+    return this.prisma.permission.upsert({
+      where: { tenantId_resource_action_scope: { tenantId: data.tenantId, resource: data.resource, action: data.action, scope: data.scope } },
+      update: {},
+      create: data,
     });
   }
 
