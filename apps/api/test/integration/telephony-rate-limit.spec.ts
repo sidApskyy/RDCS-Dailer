@@ -1,6 +1,5 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 
 import { AppModule } from '../../src/app.module';
@@ -37,8 +36,6 @@ describe('Telephony Rate Limiting (Phase 4 Production Readiness)', () => {
     module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ComplianceEngineService)
       .useClass(MockComplianceEngineService)
-      .overrideModule(ThrottlerModule)
-      .useModule(ThrottlerModule.forRoot([{ name: 'telephony', ttl: 2_000, limit: 3 }, { name: 'default', ttl: 2_000, limit: 100 }]))
       .compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api');
@@ -125,45 +122,40 @@ describe('Telephony Rate Limiting (Phase 4 Production Readiness)', () => {
     await module.close();
   });
 
-  it('should return 429 when manual-dial rate limit is exceeded', async () => {
+  it('should return 429 when manual-dial rate limit is exceeded (10 requests/min)', async () => {
+    // Use a nonexistent leadId so each request fails fast (404) without
+    // mutating agent/call state. The throttler guard runs before the
+    // handler, so failed requests still count toward the rate limit.
     const dial = () =>
       request(app.getHttpServer())
         .post('/api/v1/calls/manual-dial')
         .set('Authorization', `Bearer ${agentToken}`)
-        .send({ leadId, phoneNumber });
+        .send({ leadId: 'nonexistent-lead-id', phoneNumber });
 
-    const r1 = await dial();
-    expect(r1.status).toBe(201);
+    for (let i = 0; i < 10; i++) {
+      const r = await dial();
+      expect(r.status).toBe(404);
+    }
 
-    const r2 = await dial();
-    expect(r2.status).toBe(201);
-
-    const r3 = await dial();
-    expect(r3.status).toBe(201);
-
-    const r4 = await dial();
-    expect(r4.status).toBe(429);
-    expect(r4.body.success).toBe(false);
+    const r11 = await dial();
+    expect(r11.status).toBe(429);
+    expect(r11.body.success).toBe(false);
   });
 
-  it('should return 429 when agent status update rate limit is exceeded', async () => {
-    const updateStatus = (status: string) =>
+  it('should return 429 when agent status update rate limit is exceeded (15 requests/min)', async () => {
+    const updateStatus = () =>
       request(app.getHttpServer())
         .put('/api/v1/calls/agent/status')
         .set('Authorization', `Bearer ${agentToken}`)
-        .send({ status });
+        .send({ status: 'available' });
 
-    const r1 = await updateStatus('available');
-    expect(r1.status).toBe(200);
+    for (let i = 0; i < 15; i++) {
+      const r = await updateStatus();
+      expect(r.status).toBe(200);
+    }
 
-    const r2 = await updateStatus('available');
-    expect(r2.status).toBe(200);
-
-    const r3 = await updateStatus('available');
-    expect(r3.status).toBe(200);
-
-    const r4 = await updateStatus('available');
-    expect(r4.status).toBe(429);
+    const r16 = await updateStatus();
+    expect(r16.status).toBe(429);
   });
 
   it('should not rate-limit GET endpoints (read operations)', async () => {

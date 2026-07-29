@@ -1,6 +1,6 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 
 import { AppModule } from '../../src/app.module';
@@ -31,8 +31,8 @@ export async function createTestApp(): Promise<{ app: INestApplication; module: 
   })
     .overrideProvider(ComplianceEngineService)
     .useClass(MockComplianceEngineService)
-    .overrideModule(ThrottlerModule)
-    .useModule(ThrottlerModule.forRoot([{ name: 'telephony', ttl: 1_000, limit: 100 }, { name: 'default', ttl: 1_000, limit: 100 }]))
+    .overrideProvider(APP_GUARD)
+    .useValue({ canActivate: () => true })
     .compile();
   const app = module.createNestApplication();
   app.setGlobalPrefix('api');
@@ -48,8 +48,8 @@ export async function createTestAppWithRealCompliance(): Promise<{ app: INestApp
   const module = await Test.createTestingModule({
     imports: [AppModule],
   })
-    .overrideModule(ThrottlerModule)
-    .useModule(ThrottlerModule.forRoot([{ name: 'telephony', ttl: 1_000, limit: 100 }, { name: 'default', ttl: 1_000, limit: 100 }]))
+    .overrideProvider(APP_GUARD)
+    .useValue({ canActivate: () => true })
     .compile();
   const app = module.createNestApplication();
   app.setGlobalPrefix('api');

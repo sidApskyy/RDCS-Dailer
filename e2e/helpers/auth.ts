@@ -15,7 +15,7 @@ async function queryTenantId(slug: string): Promise<string> {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
   try {
-    const result = await client.query('SELECT id FROM "Tenant" WHERE slug = $1', [slug]);
+    const result = await client.query('SELECT id FROM tenants WHERE slug = $1', [slug]);
     if (result.rows.length === 0) throw new Error(`Tenant not found: ${slug}`);
     return result.rows[0].id;
   } finally {
@@ -28,7 +28,7 @@ export async function getTenantIdBySlug(slug: string): Promise<string> {
 }
 
 export async function loginViaApi(tenantId: string, email: string, password: string): Promise<E2EAuthSession> {
-  const response = await fetch(`${API_URL}/auth/login`, {
+  const response = await fetch(`${API_URL}/api/v1/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
