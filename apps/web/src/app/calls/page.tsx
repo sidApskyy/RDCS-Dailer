@@ -79,22 +79,22 @@ export default function CallsPage() {
           <Card>
             <CardHeader><CardTitle>Preview Dial</CardTitle><CardDescription>Automatic and predictive dialing are disabled.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
-              <Select value={selectedLeadId} onChange={(event) => chooseLead(event.target.value)}>
+              <Select value={selectedLeadId} onChange={(event) => chooseLead(event.target.value)} data-testid="calls-lead-select">
                 <option value="">Select an eligible lead</option>
                 {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.firstName} {lead.lastName} · {lead.status}</option>)}
               </Select>
               {selectedLead && <div className="rounded-lg border bg-gray-50 p-4"><div className="flex items-center gap-3"><UserRound className="h-5 w-5 text-indigo-600" /><div><p className="font-medium">{selectedLead.firstName} {selectedLead.lastName}</p><p className="text-sm text-gray-500">{selectedLead.email || 'No email'} · Consent and DNC checked before dialing</p></div></div></div>}
-              <Select value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={!selectedLead}>
+              <Select value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={!selectedLead} data-testid="calls-phone-select">
                 <option value="">Select phone</option>
                 {selectedLead?.phones?.map((phone) => <option key={phone.id} value={phone.phoneNumber}>{phone.phoneNumber}{phone.isPrimary ? ' · Primary' : ''}</option>)}
               </Select>
-              <div className="flex gap-3"><Button onClick={() => void dial()} disabled={!selectedLeadId || !phoneNumber || status !== 'available'}><PhoneCall className="mr-2 h-4 w-4" />Dial manually</Button><Badge variant={status === 'available' ? 'success' : 'secondary'}>{status}</Badge></div>
-              {message && <p className="text-sm text-gray-600">{message}</p>}
+              <div className="flex gap-3"><Button onClick={() => void dial()} disabled={!selectedLeadId || !phoneNumber || status !== 'available'} data-testid="calls-dial-button"><PhoneCall className="mr-2 h-4 w-4" />Dial manually</Button><Badge variant={status === 'available' ? 'success' : 'secondary'} data-testid="calls-agent-status-badge">{status}</Badge></div>
+              {message && <p className="text-sm text-gray-600" data-testid="calls-message">{message}</p>}
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Agent Status</CardTitle><CardDescription>Only Available agents can start a call.</CardDescription></CardHeader>
-            <CardContent className="space-y-4"><Select value={status} onChange={(event) => void updateStatus(event.target.value)}><option value="offline">Offline</option><option value="available">Available</option><option value="paused">Paused</option><option value="wrap_up">Wrap Up</option></Select><p className="text-sm text-gray-500">The platform prevents simultaneous manual calls for the same agent.</p></CardContent>
+            <CardContent className="space-y-4"><Select value={status} onChange={(event) => void updateStatus(event.target.value)} data-testid="calls-status-select"><option value="offline">Offline</option><option value="available">Available</option><option value="paused">Paused</option><option value="wrap_up">Wrap Up</option></Select><p className="text-sm text-gray-500">The platform prevents simultaneous manual calls for the same agent.</p></CardContent>
           </Card>
         </div>
         <Card><CardHeader><CardTitle>Call History</CardTitle><CardDescription>Recent manual call sessions and their terminal states.</CardDescription></CardHeader><CardContent>{calls.length === 0 ? <p className="text-sm text-gray-500">No calls yet.</p> : <div className="space-y-3">{calls.map((call) => <div key={call.id} className="flex items-center justify-between rounded-lg border p-3"><div><p className="font-medium">{call.lead?.firstName} {call.lead?.lastName}</p><p className="text-sm text-gray-500">{call.phoneNumber} · {new Date(call.createdAt).toLocaleString()}</p></div><Badge variant={call.state === 'connected' ? 'success' : 'secondary'}>{call.state}</Badge></div>)}</div>}</CardContent></Card>

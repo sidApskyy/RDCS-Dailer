@@ -95,9 +95,9 @@ jobs:
       - name: Run integration tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          JWT_SECRET: test-secret-key
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-with-sufficient-length-32+
+          JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
           WEB_ORIGINS: http://localhost:3000
         run: pnpm --filter @rdcs/api exec jest test/integration --runInBand
 
@@ -150,9 +150,9 @@ jobs:
       - name: Run security tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          JWT_SECRET: test-secret-key
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-with-sufficient-length-32+
+          JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
           WEB_ORIGINS: http://localhost:3000
         run: pnpm --filter @rdcs/api exec jest test/security --runInBand
 
@@ -205,14 +205,13 @@ jobs:
       - name: Run CSV tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          JWT_SECRET: test-secret-key
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-with-sufficient-length-32+
+          JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
         run: pnpm --filter @rdcs/api exec jest test/csv
       - name: Run BullMQ tests
         env:
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
+          REDIS_URL: redis://localhost:6379/0
         run: pnpm --filter @rdcs/api exec jest test/bullmq
 
   build:
@@ -277,9 +276,9 @@ jobs:
       - name: Run Phase 4 integration tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          JWT_SECRET: test-secret-key
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-with-sufficient-length-32+
+          JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
           WEB_ORIGINS: http://localhost:3000
         run: pnpm --filter @rdcs/api exec jest test/integration/telephony.integration.spec.ts test/integration/telephony-concurrency.spec.ts test/integration/telephony-socket.integration.spec.ts test/integration/telephony-presence.spec.ts --runInBand
 
@@ -332,9 +331,9 @@ jobs:
       - name: Run Phase 4 compliance tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          JWT_SECRET: test-secret-key
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-with-sufficient-length-32+
+          JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
           WEB_ORIGINS: http://localhost:3000
         run: pnpm --filter @rdcs/api exec jest test/integration/telephony-compliance.spec.ts --runInBand
 
@@ -387,8 +386,74 @@ jobs:
       - name: Run Phase 4 security tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          JWT_SECRET: test-secret-key
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-with-sufficient-length-32+
+          JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
           WEB_ORIGINS: http://localhost:3000
         run: pnpm --filter @rdcs/api exec jest test/security/telephony-tenant-isolation.spec.ts test/security/telephony-rbac.spec.ts --runInBand
+
+  test-phase4-e2e:
+    name: Phase 4 Browser E2E Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rdcs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:generate
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:migrate:deploy
+      - name: Seed test database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+        run: pnpm --filter @rdcs/database db:seed
+      - name: Run Phase 4 E2E tests
+        env:
+          CI: 'true'
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-with-sufficient-length-32+
+          JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
+          WEB_ORIGINS: http://localhost:3000
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+        run: pnpm test:e2e
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: playwright-report/
+          retention-days: 7

@@ -1,15 +1,21 @@
 import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import IORedis from 'ioredis';
 
 import { PrismaService } from './prisma/prisma.service';
 
 @Controller()
+@SkipThrottle()
 export class AppController {
   private readonly redis: IORedis;
   private readonly startTime: Date;
 
   constructor(private readonly prisma: PrismaService) {
-    this.redis = new IORedis(process.env.REDIS_URL || 'redis://:rdcs@localhost:6379/0', {
+    const redisUrl = process.env.REDIS_URL || (process.env.NODE_ENV === 'production' ? undefined : 'redis://:rdcs@localhost:6379/0');
+    if (!redisUrl) {
+      throw new Error('REDIS_URL is required in production');
+    }
+    this.redis = new IORedis(redisUrl, {
       lazyConnect: true,
     });
     this.startTime = new Date();

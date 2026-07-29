@@ -6,9 +6,25 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   JWT_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
+  JWT_ACCESS_EXPIRY: z.string().default('15m'),
+  JWT_REFRESH_EXPIRY: z.string().default('7d'),
   JWT_EXPIRES_IN: z.string().default('1d'),
-  WEB_ORIGIN: z.string().url().optional(),
+  WEB_ORIGINS: z.string().optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug', 'verbose']).default('info'),
+}).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    const weakSecrets = ['test-secret-key', 'change-me', 'secret', 'jwt-secret'];
+    if (weakSecrets.includes(data.JWT_SECRET)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_SECRET'], message: 'Weak JWT_SECRET is not allowed in production' });
+    }
+    if (weakSecrets.includes(data.JWT_REFRESH_SECRET)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_REFRESH_SECRET'], message: 'Weak JWT_REFRESH_SECRET is not allowed in production' });
+    }
+    if (!data.WEB_ORIGINS) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['WEB_ORIGINS'], message: 'WEB_ORIGINS is required in production' });
+    }
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -20,8 +36,11 @@ export function validateEnv(): Env {
     DATABASE_URL: process.env.DATABASE_URL,
     REDIS_URL: process.env.REDIS_URL,
     JWT_SECRET: process.env.JWT_SECRET,
+    JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
+    JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY,
+    JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY,
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN,
-    WEB_ORIGIN: process.env.WEB_ORIGIN,
+    WEB_ORIGINS: process.env.WEB_ORIGINS,
     LOG_LEVEL: process.env.LOG_LEVEL,
   };
 

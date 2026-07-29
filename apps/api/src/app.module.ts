@@ -1,11 +1,13 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { TelephonyThrottlerGuard } from './common/guards/telephony-throttler.guard';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { LoggerService } from './common/logger/logger.service';
+import { LoggerModule } from './common/logger/logger.module';
 import { CorrelationMiddleware } from './common/middleware/correlation.middleware';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
@@ -31,7 +33,20 @@ import { PrismaModule } from './prisma/prisma.module';
       isGlobal: true,
       load: [appConfig, databaseConfig],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'telephony',
+        ttl: 60_000,
+        limit: 30,
+      },
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 100,
+      },
+    ]),
     PrismaModule,
+    LoggerModule,
     AuthModule,
     RbacModule,
     CampaignModule,
@@ -50,10 +65,13 @@ import { PrismaModule } from './prisma/prisma.module';
   controllers: [AppController],
   providers: [
     AppService,
-    LoggerService,
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TelephonyThrottlerGuard,
     },
   ],
 })

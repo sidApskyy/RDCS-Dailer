@@ -7,7 +7,12 @@ import { logger } from './logger';
 
 validateEnv();
 
-const redis = new IORedis(process.env.REDIS_URL || 'redis://:rdcs@localhost:6379/0', {
+const workerRedisUrl = process.env.REDIS_URL || (process.env.NODE_ENV === 'production' ? undefined : 'redis://:rdcs@localhost:6379/0');
+if (!workerRedisUrl) {
+  console.error('REDIS_URL is required in production');
+  process.exit(1);
+}
+const redis = new IORedis(workerRedisUrl, {
   maxRetriesPerRequest: null,
 });
 

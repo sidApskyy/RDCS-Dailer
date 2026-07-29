@@ -3,6 +3,7 @@ import { Server as HttpServer } from 'node:http';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Server } from 'socket.io';
 
+import { LoggerService } from '../../common/logger/logger.service';
 import { AuthService } from '../auth/auth.service';
 
 import { TelephonyEvents } from './telephony.events';
@@ -12,7 +13,7 @@ export class TelephonySocketService implements OnModuleDestroy {
   private server?: Server;
   private removeListener?: () => void;
 
-  constructor(private readonly auth: AuthService, private readonly events: TelephonyEvents) {}
+  constructor(private readonly auth: AuthService, private readonly events: TelephonyEvents, private readonly logger: LoggerService) {}
 
   attach(httpServer: HttpServer): void {
     const allowedOrigins = (process.env.WEB_ORIGINS || 'http://localhost:3000').split(',').map((origin) => origin.trim()).filter(Boolean);
@@ -25,8 +26,10 @@ export class TelephonySocketService implements OnModuleDestroy {
         socket.data.userId = payload.userId;
         socket.join(`tenant:${payload.tenantId}`);
         socket.join(`agent:${payload.userId}`);
+        this.logger.debug('Socket authenticated', 'TelephonySocketService', { tenantId: payload.tenantId, userId: payload.userId, socketId: socket.id });
         next();
-      } catch {
+      } catch (error) {
+        this.logger.warn('Socket authentication failed', 'TelephonySocketService', { socketId: socket.id, reason: error instanceof Error ? error.message : 'unknown' });
         next(new Error('Unauthorized'));
       }
     });
@@ -37,6 +40,7 @@ export class TelephonySocketService implements OnModuleDestroy {
   }
 
   onModuleDestroy(): void {
+    this.logger.log('Socket server shutting down', 'TelephonySocketService');
     this.removeListener?.();
     this.server?.close();
   }

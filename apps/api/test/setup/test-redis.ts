@@ -9,12 +9,24 @@ export class TestRedis {
   private client: Redis;
 
   constructor() {
-    this.client = new Redis({
-      lazyConnect: true,
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      db: parseInt(process.env.REDIS_TEST_DB || '1'), // Use separate DB for tests
-    });
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+      const url = new URL(redisUrl);
+      this.client = new Redis({
+        lazyConnect: true,
+        host: url.hostname,
+        port: parseInt(url.port || '6379'),
+        password: url.password || undefined,
+        db: parseInt(process.env.REDIS_TEST_DB || '1'),
+      });
+    } else {
+      this.client = new Redis({
+        lazyConnect: true,
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        db: parseInt(process.env.REDIS_TEST_DB || '1'), // Use separate DB for tests
+      });
+    }
   }
 
   async connect() {

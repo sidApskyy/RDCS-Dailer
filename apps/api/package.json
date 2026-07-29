@@ -22,6 +22,7 @@
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/swagger": "^8.1.0",
+    "@nestjs/throttler": "^6.5.0",
     "@rdcs/database": "workspace:*",
     "@rdcs/shared-types": "workspace:*",
     "bcrypt": "^5.1.0",

@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 
 import { AppModule } from '../../src/app.module';
@@ -30,6 +31,8 @@ export async function createTestApp(): Promise<{ app: INestApplication; module: 
   })
     .overrideProvider(ComplianceEngineService)
     .useClass(MockComplianceEngineService)
+    .overrideModule(ThrottlerModule)
+    .useModule(ThrottlerModule.forRoot([{ name: 'telephony', ttl: 1_000, limit: 100 }, { name: 'default', ttl: 1_000, limit: 100 }]))
     .compile();
   const app = module.createNestApplication();
   app.setGlobalPrefix('api');
@@ -42,7 +45,12 @@ export async function createTestApp(): Promise<{ app: INestApplication; module: 
 }
 
 export async function createTestAppWithRealCompliance(): Promise<{ app: INestApplication; module: TestingModule }> {
-  const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const module = await Test.createTestingModule({
+    imports: [AppModule],
+  })
+    .overrideModule(ThrottlerModule)
+    .useModule(ThrottlerModule.forRoot([{ name: 'telephony', ttl: 1_000, limit: 100 }, { name: 'default', ttl: 1_000, limit: 100 }]))
+    .compile();
   const app = module.createNestApplication();
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });

@@ -30,7 +30,8 @@ describe('TelephonyService hardening', () => {
     };
     const compliance = { checkLeadEligibility: jest.fn().mockResolvedValue({ eligible: true, reason: 'ok', rule: 'ELIGIBLE' }) };
     const events = { emit: jest.fn(), on: jest.fn() };
-    return { service: new TelephonyService(prisma as never, compliance as never, adapter as never, events as never), prisma, tx, adapter, compliance, events };
+    const logger = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), verbose: jest.fn() };
+    return { service: new TelephonyService(prisma as never, compliance as never, adapter as never, events as never, logger as never), prisma, tx, adapter, compliance, events };
   }
 
   it('claims availability and creates the call plus linked attempt in one transaction', async () => {

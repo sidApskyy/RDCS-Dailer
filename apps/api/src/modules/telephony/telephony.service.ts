@@ -1,6 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@rdcs/database';
 
+import { LoggerService } from '../../common/logger/logger.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ComplianceEngineService } from '../compliance/compliance-engine.service';
 
@@ -21,6 +22,7 @@ export class TelephonyService {
     private readonly compliance: ComplianceEngineService,
     @Inject(TELEPHONY_ADAPTER) private readonly adapter: TelephonyAdapter,
     private readonly events: TelephonyEvents,
+    private readonly logger: LoggerService,
   ) {}
 
   private readonly eventQueues = new Map<string, Promise<void>>();
@@ -50,6 +52,7 @@ export class TelephonyService {
       timezone: lead.timezone,
     });
     if (!eligibility.eligible) {
+      this.logger.warn('Call blocked by compliance', 'TelephonyService', { tenantId, agentId, leadId: lead.id, phoneNumber: dto.phoneNumber, reason: eligibility.reason, rule: eligibility.rule });
       await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'call.compliance_blocked', resource: 'Lead', resourceId: lead.id, metadata: { phoneNumber: dto.phoneNumber, reason: eligibility.reason, rule: eligibility.rule } } });
       throw new BadRequestException(`Lead is not eligible: ${eligibility.reason}`);
     }
@@ -62,12 +65,14 @@ export class TelephonyService {
         data: { status: AgentPresence.Busy },
       });
       if (claimed.count !== 1) throw new ConflictException('Agent is not available for manual dialing');
+      this.logger.debug('Agent claimed for manual dial', 'TelephonyService', { tenantId, agentId });
 
       const active = await tx.callSession.findFirst({
         where: { tenantId, agentId, state: { in: [CallState.Queued, CallState.Dialing, CallState.Ringing, CallState.Connected, CallState.OnHold] } },
         select: { id: true },
       });
       if (active) throw new ConflictException('Agent already has an active call');
+      this.logger.debug('No active call conflict', 'TelephonyService', { tenantId, agentId });
 
       const previousAttempt = await tx.leadAttempt.findFirst({ where: { tenantId, leadId: lead.id }, orderBy: { attemptNumber: 'desc' }, select: { attemptNumber: true } });
       const attempt = await tx.leadAttempt.create({
@@ -77,10 +82,12 @@ export class TelephonyService {
         data: { tenantId, agentId, leadId: lead.id, campaignId: dto.campaignId, phoneNumber: dto.phoneNumber, attemptId: attempt.id, state: CallState.Queued },
       });
       await tx.audit.create({ data: { tenantId, userId: agentId, action: 'call.created', resource: 'CallSession', resourceId: created.id, metadata: { leadId: lead.id, phoneNumber: dto.phoneNumber } } });
+      this.logger.log('Call session created', 'TelephonyService', { tenantId, agentId, callId: created.id, leadId: lead.id, phoneNumber: dto.phoneNumber });
       return created;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code)) {
+        this.logger.warn('Concurrent dial conflict', 'TelephonyService', { tenantId, agentId, code: error.code });
         throw new ConflictException('Agent already has an active call');
       }
       throw error;
@@ -91,10 +98,12 @@ export class TelephonyService {
     try {
       const result = await this.adapter.dial({ callId: call.id, tenantId, agentId, leadId: lead.id, campaignId: dto.campaignId, phoneNumber: dto.phoneNumber });
       await this.prisma.callSession.update({ where: { id: call.id }, data: { providerRef: result.providerRef } });
+      this.logger.log('Adapter dial accepted', 'TelephonyService', { tenantId, agentId, callId: call.id, providerRef: result.providerRef });
     } catch (error) {
       subscription.unsubscribe();
       const completedAt = new Date();
       const reason = error instanceof Error ? error.message : 'adapter failure';
+      this.logger.error('Adapter dial failed', undefined, 'TelephonyService', { tenantId, agentId, callId: call.id, reason });
       await this.prisma.callSession.update({ where: { id: call.id }, data: { state: CallState.Failed, terminationReason: reason, completedAt } });
       if (call.attemptId) await this.prisma.leadAttempt.update({ where: { id: call.attemptId }, data: { outcome: CallState.Failed, endedAt: completedAt } });
       await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'call.failed', resource: 'CallSession', resourceId: call.id, metadata: { reason } } });
@@ -110,11 +119,14 @@ export class TelephonyService {
     if (terminalStates.has(call.state as CallState)) {
       await this.waitForEvents(id);
       await this.setPresence(tenantId, agentId, AgentPresence.WrapUp);
+      this.logger.debug('Cancel attempted on terminated call', 'TelephonyService', { tenantId, agentId, callId: id, state: call.state });
       throw new BadRequestException('Call is already terminated');
     }
+    this.logger.log('Cancelling call', 'TelephonyService', { tenantId, agentId, callId: id });
     await this.adapter.cancel(id);
     await this.waitForEvents(id);
     await this.setPresence(tenantId, agentId, AgentPresence.WrapUp);
+    this.logger.log('Call cancelled', 'TelephonyService', { tenantId, agentId, callId: id });
     return this.getCall(tenantId, id);
   }
 
@@ -135,6 +147,7 @@ export class TelephonyService {
   async setPresence(tenantId: string, agentId: string, status: AgentPresence) {
     const presence = await this.prisma.agentPresence.upsert({ where: { tenantId_agentId: { tenantId, agentId } }, update: { status }, create: { tenantId, agentId, status } });
     await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'agent.status_changed', resource: 'AgentPresence', resourceId: presence.id, metadata: { status } } });
+    this.logger.debug('Agent presence updated', 'TelephonyService', { tenantId, agentId, status });
     this.events.emit({ type: 'agent.status_changed', callId: '', tenantId, agentId, state: CallState.Idle, occurredAt: new Date() });
     return presence;
   }
@@ -159,6 +172,7 @@ export class TelephonyService {
     if (disposed?.attemptId) await this.prisma.leadAttempt.update({ where: { id: disposed.attemptId }, data: { dispositionId, endedAt: new Date() } });
     await this.setPresence(tenantId, agentId, AgentPresence.Available);
     await this.prisma.audit.create({ data: { tenantId, userId: agentId, action: 'call.dispositioned', resource: 'CallSession', resourceId: id, metadata: { dispositionId } } });
+    this.logger.log('Call dispositioned', 'TelephonyService', { tenantId, agentId, callId: id, dispositionId });
     return this.getCall(tenantId, id);
   }
 
@@ -178,7 +192,10 @@ export class TelephonyService {
   private async handleEvent(event: import('./telephony.types').CallEvent): Promise<void> {
     const call = await this.prisma.callSession.findFirst({ where: { id: event.callId, tenantId: event.tenantId } });
     if (!call || call.state === event.state) return;
-    try { transition(call.state as CallState, event.state); } catch { return; }
+    try { transition(call.state as CallState, event.state); } catch {
+      this.logger.warn('Invalid state transition ignored', 'TelephonyService', { callId: event.callId, from: call.state, to: event.state });
+      return;
+    }
     const now = event.occurredAt;
     const data: Record<string, unknown> = { state: event.state };
     if (event.providerRef) data.providerRef = event.providerRef;
@@ -193,6 +210,7 @@ export class TelephonyService {
     }
     if (terminalStates.has(event.state)) {
       await this.prisma.audit.create({ data: { tenantId: call.tenantId, userId: call.agentId, action: `call.${event.state}`, resource: 'CallSession', resourceId: call.id, metadata: { providerRef: event.providerRef } } });
+      this.logger.log('Call reached terminal state', 'TelephonyService', { tenantId: call.tenantId, agentId: call.agentId, callId: call.id, state: event.state });
     }
     this.emit(call.id, call.tenantId, call.agentId, event.state, event.providerRef);
     if (terminalStates.has(event.state) && event.state !== CallState.Disposed) await this.setPresence(call.tenantId, call.agentId, AgentPresence.WrapUp);
