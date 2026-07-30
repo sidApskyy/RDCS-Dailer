@@ -172,9 +172,12 @@ describe('Phase 4 — Compliance Acceptance Tests', () => {
       const result = await compliance.checkLeadEligibility('tenant-1', 'lead-1', '+10000000001', {
         checkDNC: false, checkConsent: false, checkCallingWindow: false, checkTimezone: true, timezone: 'Asia/Tokyo',
       });
-      const tokyoHour = new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo', hour: 'numeric' });
+      const tokyoHour = new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo', hour: 'numeric', hourCycle: 'h23' });
       const hour = parseInt(tokyoHour);
-      if (hour < 9 || hour >= 17) {
+      const tokyoWeekday = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' })).getDay();
+      const isBusinessHours = hour >= 9 && hour < 17;
+      const isWeekday = tokyoWeekday >= 1 && tokyoWeekday <= 5;
+      if (!isBusinessHours || !isWeekday) {
         expect(result.eligible).toBe(false);
         expect(result.rule).toBe('OUTSIDE_BUSINESS_HOURS');
       } else {

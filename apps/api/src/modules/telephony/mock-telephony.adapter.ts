@@ -84,6 +84,15 @@ export class MockTelephonyAdapter implements TelephonyAdapter {
     return this.calls.get(callId)?.subject.asObservable() ?? new Observable<CallEvent>((subscriber) => subscriber.complete());
   }
 
+  /** Test-only: clears all pending timers for in-flight mock calls without emitting further events. */
+  reset(): void {
+    for (const mockCall of this.calls.values()) {
+      mockCall.timers.forEach(clearTimeout);
+      mockCall.subject.complete();
+    }
+    this.calls.clear();
+  }
+
   private emit(mockCall: MockCall, type: CallEventType, state: CallState): void {
     mockCall.subject.next({
       type,

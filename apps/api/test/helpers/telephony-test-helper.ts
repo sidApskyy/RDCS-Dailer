@@ -6,8 +6,20 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/exceptions/http-exception.filter';
 import { ComplianceEngineService, EligibilityResult } from '../../src/modules/compliance/compliance-engine.service';
+import { MockTelephonyAdapter } from '../../src/modules/telephony/mock-telephony.adapter';
 import { TelephonySocketService } from '../../src/modules/telephony/telephony-socket.service';
 import { testDb, testAuth } from '../setup';
+
+// The mock adapter auto-progresses calls (dialing -> ringing -> connected -> completed) via real
+// setTimeout timers that are not awaited by TelephonyService. If left running, a previous test's
+// completion timer can fire mid-test and flip AgentPresence to 'wrap_up' right after the current
+// test seeds it as 'available' but before its own manual-dial call, causing spurious 409 Conflict
+// responses. Track the adapter instance per test app so it can be reset between tests.
+const adapters = new Set<MockTelephonyAdapter>();
+
+afterEach(() => {
+  adapters.forEach((adapter) => adapter.reset());
+});
 
 class MockComplianceEngineService {
   async checkLeadEligibility(): Promise<EligibilityResult> {
@@ -41,6 +53,7 @@ export async function createTestApp(): Promise<{ app: INestApplication; module: 
   app.useGlobalFilters(new HttpExceptionFilter());
   await app.init();
   app.get(TelephonySocketService).attach(app.getHttpServer());
+  adapters.add(app.get(MockTelephonyAdapter));
   return { app, module };
 }
 
@@ -58,6 +71,7 @@ export async function createTestAppWithRealCompliance(): Promise<{ app: INestApp
   app.useGlobalFilters(new HttpExceptionFilter());
   await app.init();
   app.get(TelephonySocketService).attach(app.getHttpServer());
+  adapters.add(app.get(MockTelephonyAdapter));
   return { app, module };
 }
 
