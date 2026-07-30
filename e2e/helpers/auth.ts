@@ -38,8 +38,12 @@ export async function loginViaApi(tenantId: string, email: string, password: str
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Login failed: ${error.message || response.statusText}`);
+    let message = response.statusText;
+    try {
+      const error = await response.json();
+      message = (error?.error?.message || error?.message || message) as string;
+    } catch {}
+    throw new Error(`Login failed [${response.status}]: ${message} (tenantId=${tenantId}, email=${email})`);
   }
 
   const data = await response.json();
