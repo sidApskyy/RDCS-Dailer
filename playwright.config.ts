@@ -41,6 +41,7 @@ export default defineConfig({
       port: 3000,
       timeout: 120000,
       env: {
+        ...process.env,
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
       },
     },
@@ -49,6 +50,7 @@ export default defineConfig({
       port: 3001,
       timeout: 120000,
       env: {
+        ...process.env,
         DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/rdcs_test',
         REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379/0',
         JWT_SECRET: process.env.JWT_SECRET || 'test-secret-key-with-sufficient-length-32+',

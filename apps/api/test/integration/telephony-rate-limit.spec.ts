@@ -44,7 +44,17 @@ describe('Telephony Rate Limiting (Phase 4 Production Readiness)', () => {
     app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
     app.get(TelephonySocketService).attach(app.getHttpServer());
+  });
 
+  afterAll(async () => {
+    await app.close();
+    await module.close();
+  });
+
+  // The global `beforeEach` (registered by importing `../setup`) truncates
+  // all tables before every test, so seed data must be re-created here
+  // rather than once in `beforeAll`.
+  beforeEach(async () => {
     const prisma = testDb.getPrisma();
     tenantId = 'rate-limit-tenant';
     const userId = 'rate-limit-agent';
@@ -115,11 +125,6 @@ describe('Telephony Rate Limiting (Phase 4 Production Readiness)', () => {
       password: 'TestPassword123!',
       roles: ['agent'],
     });
-  });
-
-  afterAll(async () => {
-    await app.close();
-    await module.close();
   });
 
   it('should return 429 when manual-dial rate limit is exceeded (10 requests/min)', async () => {
