@@ -1,10 +1,10 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/common/exceptions/http-exception.filter';
+import { TelephonyThrottlerGuard } from '../../src/common/guards/telephony-throttler.guard';
 import { ComplianceEngineService, EligibilityResult } from '../../src/modules/compliance/compliance-engine.service';
 import { MockTelephonyAdapter } from '../../src/modules/telephony/mock-telephony.adapter';
 import { TelephonySocketService } from '../../src/modules/telephony/telephony-socket.service';
@@ -43,7 +43,7 @@ export async function createTestApp(): Promise<{ app: INestApplication; module: 
   })
     .overrideProvider(ComplianceEngineService)
     .useClass(MockComplianceEngineService)
-    .overrideProvider(APP_GUARD)
+    .overrideGuard(TelephonyThrottlerGuard)
     .useValue({ canActivate: () => true })
     .compile();
   const app = module.createNestApplication();
@@ -61,7 +61,7 @@ export async function createTestAppWithRealCompliance(): Promise<{ app: INestApp
   const module = await Test.createTestingModule({
     imports: [AppModule],
   })
-    .overrideProvider(APP_GUARD)
+    .overrideGuard(TelephonyThrottlerGuard)
     .useValue({ canActivate: () => true })
     .compile();
   const app = module.createNestApplication();
