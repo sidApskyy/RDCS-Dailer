@@ -65,20 +65,36 @@ export class AuthService {
       where: { tenantId_email: { tenantId, email: dto.email } },
     });
     if (!user) {
+      if (process.env.E2E_AUTH_DEBUG === '1') {
+        // eslint-disable-next-line no-console
+        console.log(`[AUTH DEBUG] login failed: user not found (tenantId=${tenantId}, email=${dto.email})`);
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
 
     if (user.status !== 'active') {
+      if (process.env.E2E_AUTH_DEBUG === '1') {
+        // eslint-disable-next-line no-console
+        console.log(`[AUTH DEBUG] login failed: user inactive (tenantId=${tenantId}, email=${dto.email}, status=${user.status})`);
+      }
       throw new UnauthorizedException('Account inactive');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      if (process.env.E2E_AUTH_DEBUG === '1') {
+        // eslint-disable-next-line no-console
+        console.log(`[AUTH DEBUG] login failed: user locked (tenantId=${tenantId}, email=${dto.email}, lockedUntil=${user.lockedUntil.toISOString()})`);
+      }
       throw new UnauthorizedException('Account locked. Try again later.');
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
       await this.handleFailedLogin(user);
+      if (process.env.E2E_AUTH_DEBUG === '1') {
+        // eslint-disable-next-line no-console
+        console.log(`[AUTH DEBUG] login failed: password mismatch (tenantId=${tenantId}, email=${dto.email})`);
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -91,6 +107,11 @@ export class AuthService {
       ipAddress,
       userAgent,
     });
+
+    if (process.env.E2E_AUTH_DEBUG === '1') {
+      // eslint-disable-next-line no-console
+      console.log(`[AUTH DEBUG] login success (tenantId=${tenantId}, userId=${user.id}, email=${user.email})`);
+    }
 
     return this.createTokenPair(user.id, tenantId, ipAddress, userAgent);
   }
