@@ -105,7 +105,7 @@ jobs:
 
       - name: Start API (background)
         run: |
-          nohup pnpm --filter @rdcs/api start > api.out 2>&1 &
+          pnpm --filter @rdcs/api start 2>&1 | tee api.out &
           echo $! > api.pid
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
@@ -171,3 +171,10 @@ jobs:
           WEB_ORIGINS: ${{ env.WEB_ORIGINS }}
           SKIP_DB_CONNECT: '0'
           E2E_AUTH_DEBUG: '1'
+
+      - name: Stop API (always)
+        if: always()
+        run: |
+          if [ -f api.pid ]; then kill $(cat api.pid) || true; fi
+          echo '--- API last 200 lines ---'
+          if [ -f api.out ]; then tail -n 200 api.out; fi
