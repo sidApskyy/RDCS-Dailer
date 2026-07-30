@@ -48,11 +48,12 @@ class ApiClient {
 
           try {
             if (typeof window !== 'undefined') {
-              const tokens = localStorage.getItem('auth_tokens');
-              if (tokens) {
-                const { refreshToken } = JSON.parse(tokens);
+              const storedTokens = localStorage.getItem('auth_tokens');
+              if (storedTokens) {
+                const { refreshToken } = JSON.parse(storedTokens);
                 const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
-                const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data;
+                const tokens = response.data?.data || response.data;
+                const { accessToken: newAccessToken, refreshToken: newRefreshToken } = tokens;
 
                 localStorage.setItem('auth_tokens', JSON.stringify({
                   accessToken: newAccessToken,

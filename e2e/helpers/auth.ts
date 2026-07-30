@@ -57,19 +57,20 @@ export async function loginViaApi(tenantId: string, email: string, password: str
     let message = response.statusText;
     try {
       const error = await response.json();
-      message = (error?.error?.message || error?.message || message) as string;
+      message = (error?.error?.message || error?.data?.message || error?.message || message) as string;
     } catch {}
     throw new Error(`Login failed [${response.status}]: ${message} (tenantId=${tenantId}, email=${email})`);
   }
 
   const data = await response.json();
-  const payload = JSON.parse(atob(data.accessToken.split('.')[1]));
+  const tokens = data.data || data;
+  const payload = JSON.parse(atob(tokens.accessToken.split('.')[1]));
 
   return {
     tenantId,
     userId: payload.sub,
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
   };
 }
 

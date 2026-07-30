@@ -42,7 +42,7 @@ async function main() {
   if (!resp.ok) {
     try {
       const err = (await resp.json()) as Record<string, any>;
-      const msg = (err?.error?.message || err?.message || resp.statusText) as string;
+      const msg = (err?.error?.message || err?.data?.message || err?.message || resp.statusText) as string;
       console.log(`[E2E API AUTH VERIFY] Authentication: FAIL (${msg})`);
     } catch {
       console.log('[E2E API AUTH VERIFY] Authentication: FAIL');

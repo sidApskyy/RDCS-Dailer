@@ -54,17 +54,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Login failed');
+      throw new Error(error?.data?.message || error?.message || 'Login failed');
     }
 
     const data = await response.json();
-    setAccessToken(data.accessToken);
-    setRefreshToken(data.refreshToken);
-    setUser(decodeToken(data.accessToken));
+    const tokens = data.data || data;
+    setAccessToken(tokens.accessToken);
+    setRefreshToken(tokens.refreshToken);
+    setUser(decodeToken(tokens.accessToken));
 
     localStorage.setItem('auth_tokens', JSON.stringify({
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     }));
   };
 
@@ -108,13 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await response.json();
-      setAccessToken(data.accessToken);
-      setRefreshToken(data.refreshToken);
-      setUser(decodeToken(data.accessToken));
+      const tokens = data.data || data;
+      setAccessToken(tokens.accessToken);
+      setRefreshToken(tokens.refreshToken);
+      setUser(decodeToken(tokens.accessToken));
 
       localStorage.setItem('auth_tokens', JSON.stringify({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       }));
     } catch {
       await logout();
