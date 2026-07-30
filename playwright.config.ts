@@ -47,7 +47,7 @@ export default defineConfig({
       },
     },
     {
-      command: 'pnpm --filter @rdcs/database db:generate && pnpm --filter @rdcs/api build && pnpm --filter @rdcs/api start',
+      command: 'pnpm --filter @rdcs/database db:generate && pnpm --filter @rdcs/database build && pnpm --filter @rdcs/api build && pnpm --filter @rdcs/api start',
       port: 3001,
       timeout: 180000,
       env: {
@@ -58,7 +58,7 @@ export default defineConfig({
         JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'test-refresh-secret-key-with-sufficient-length',
         WEB_ORIGINS: 'http://localhost:3000',
         NODE_ENV: 'development',
-        SKIP_DB_CONNECT: process.env.SKIP_DB_CONNECT || '0',
+        SKIP_DB_CONNECT: process.env.SKIP_DB_CONNECT || '1',
       },
     },
   ],
