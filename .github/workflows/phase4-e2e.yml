@@ -95,7 +95,7 @@ jobs:
         run: pnpm --filter @rdcs/database db:seed
 
       - name: Verify E2E DB auth preconditions
-        run: pnpm --filter @rdcs/api exec ts-node apps/api/scripts/verify-e2e-auth.ts
+        run: pnpm --filter @rdcs/api exec ts-node scripts/verify-e2e-auth.ts
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
           E2E_TENANT_SLUG: rdcs-tenant-a
@@ -130,7 +130,7 @@ jobs:
           curl -sf "http://localhost:3001/api/docs" >/dev/null
 
       - name: Verify API direct authentication
-        run: pnpm --filter @rdcs/api exec ts-node apps/api/scripts/verify-api-auth.ts
+        run: pnpm --filter @rdcs/api exec ts-node scripts/verify-api-auth.ts
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
           NEXT_PUBLIC_API_URL: ${{ env.NEXT_PUBLIC_API_URL }}
