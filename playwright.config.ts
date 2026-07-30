@@ -45,6 +45,7 @@ export default defineConfig({
       command: 'pnpm --filter @rdcs/web build && pnpm --filter @rdcs/web start',
       port: 3000,
       timeout: 180000,
+      reuseExistingServer: true,
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
@@ -55,6 +56,7 @@ export default defineConfig({
       command: 'pnpm --filter @rdcs/database db:generate && pnpm --filter @rdcs/database db:migrate:deploy && pnpm --filter @rdcs/database db:seed && pnpm --filter @rdcs/database build && pnpm --filter @rdcs/api build && pnpm --filter @rdcs/api start',
       port: 3001,
       timeout: 180000,
+      reuseExistingServer: true,
       env: {
         ...process.env,
         DATABASE_URL: process.env.DATABASE_URL || DEFAULT_DB_URL,
