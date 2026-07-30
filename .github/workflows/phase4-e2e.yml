@@ -59,12 +59,25 @@ jobs:
           node-version: '20.x'
           cache: 'pnpm'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
       - name: Enable Corepack
         run: corepack enable
 
       - name: Use workspace packageManager (pnpm)
+        run: corepack prepare pnpm@9.15.0 --activate
+
+      - name: Ensure pnpm available
         run: |
-          corepack prepare pnpm@$(jq -r .packageManager package.json | cut -d'@' -f2) --activate
+          if ! command -v pnpm >/dev/null 2>&1; then
+            echo "pnpm not found on PATH; installing via npm..."
+            npm i -g pnpm@9.15.0
+          fi
+          echo "pnpm version: $(pnpm --version)"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

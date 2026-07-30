@@ -5,7 +5,12 @@
     "outDir": "./dist",
     "rootDir": ".",
     "declaration": false,
-    "declarationMap": false
+    "declarationMap": false,
+    "paths": {
+      "@rdcs/database": ["../../packages/database/src"],
+      "@rdcs/database/*": ["../../packages/database/src/*"],
+      "@prisma/client": ["../../packages/database/node_modules/@prisma/client"]
+    }
   },
   "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "dist"]
