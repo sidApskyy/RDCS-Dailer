@@ -37,16 +37,17 @@ export default defineConfig({
       ],
   webServer: [
     {
-      command: 'pnpm --filter @rdcs/web dev',
+      command: 'pnpm --filter @rdcs/web build && pnpm --filter @rdcs/web start',
       port: 3000,
       timeout: 180000,
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
+        PORT: '3000',
       },
     },
     {
-      command: 'pnpm --filter @rdcs/database db:generate && pnpm --filter @rdcs/api dev',
+      command: 'pnpm --filter @rdcs/database db:generate && pnpm --filter @rdcs/api build && pnpm --filter @rdcs/api start',
       port: 3001,
       timeout: 180000,
       env: {
@@ -57,6 +58,7 @@ export default defineConfig({
         JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'test-refresh-secret-key-with-sufficient-length',
         WEB_ORIGINS: 'http://localhost:3000',
         NODE_ENV: 'development',
+        SKIP_DB_CONNECT: process.env.SKIP_DB_CONNECT || '0',
       },
     },
   ],
