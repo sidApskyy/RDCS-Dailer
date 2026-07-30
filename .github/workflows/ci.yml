@@ -449,6 +449,7 @@ jobs:
           JWT_REFRESH_SECRET: test-refresh-secret-key-with-sufficient-length
           WEB_ORIGINS: http://localhost:3000
           NEXT_PUBLIC_API_URL: http://localhost:3001
+          E2E_AUTH_DEBUG: '1'
         run: pnpm test:e2e
       - name: Upload E2E test results
         if: always()
