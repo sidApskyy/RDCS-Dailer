@@ -47,6 +47,7 @@ jobs:
       JWT_SECRET: test-e2e-jwt-secret-32-characters-minimum-1234
       JWT_REFRESH_SECRET: test-e2e-refresh-secret-32-characters-1234
       REDIS_URL: redis://localhost:6379/0
+      E2E_AUTH_DEBUG: '1'
 
     steps:
       - name: Checkout
@@ -128,3 +129,4 @@ jobs:
           NODE_ENV: ${{ env.NODE_ENV }}
           WEB_ORIGINS: ${{ env.WEB_ORIGINS }}
           SKIP_DB_CONNECT: '0'
+          E2E_AUTH_DEBUG: '1'
