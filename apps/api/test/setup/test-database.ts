@@ -27,8 +27,9 @@ export class TestDatabase {
   }
 
   async clean() {
-    // Clean all tables in correct order respecting foreign keys
-    const tables = [
+    // Clean tables with a single TRUNCATE to minimize round-trips.
+    // Filter to only include tables that actually exist in the public schema.
+    const desired = [
       'call_sessions',
       'agent_presences',
       'lead_attempts',
@@ -64,13 +65,15 @@ export class TestDatabase {
       'tenants',
     ];
 
-    for (const table of tables) {
-      try {
-        await this.prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE`);
-      } catch {
-        // Table might not exist, continue
-      }
-    }
+    // Get intersection of desired with existing tables
+    const existing = (await this.prisma.$queryRawUnsafe<{ tablename: string }[]>(
+      `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN (${desired.map((n) => `'${n}'`).join(', ')})`,
+    )).map((r) => r.tablename);
+
+    if (existing.length === 0) return;
+
+    const qualified = existing.map((n) => `"${n}"`).join(', ');
+    await this.prisma.$executeRawUnsafe(`TRUNCATE TABLE ${qualified} RESTART IDENTITY CASCADE`);
   }
 
   async seedTenant(data: { id: string; name: string; slug: string }) {

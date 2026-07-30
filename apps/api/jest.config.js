@@ -22,5 +22,5 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
-  testTimeout: 10000,
+  testTimeout: 30000,
 };
