@@ -3,6 +3,21 @@ import { Page, expect } from '@playwright/test';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/rdcs_test';
 
+let __loggedEnvOnce = false;
+function logEnvOnce() {
+  if (__loggedEnvOnce) return;
+  __loggedEnvOnce = true;
+  try {
+    const url = new URL(DATABASE_URL);
+    // Safe, sanitized: no username/password
+    // eslint-disable-next-line no-console
+    console.log(`[E2E] API_URL=${API_URL} DB=${url.hostname}:${url.port}${url.pathname}`);
+  } catch {
+    // eslint-disable-next-line no-console
+    console.log(`[E2E] API_URL=${API_URL} DB=<unparsable>`);
+  }
+}
+
 export interface E2EAuthSession {
   tenantId: string;
   userId: string;
@@ -15,6 +30,7 @@ async function queryTenantId(slug: string): Promise<string> {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
   try {
+    logEnvOnce();
     const result = await client.query('SELECT id FROM tenants WHERE slug = $1', [slug]);
     if (result.rows.length === 0) throw new Error(`Tenant not found: ${slug}`);
     return result.rows[0].id;
