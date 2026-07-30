@@ -242,11 +242,16 @@ export async function seedAgentWithLead(opts: {
 }
 
 export function authRequest(app: INestApplication, token: string) {
-  return request.agent(app.getHttpServer()).set('Authorization', `Bearer ${token}`);
+  return request
+    .agent(app.getHttpServer())
+    .set('Authorization', `Bearer ${token}`)
+    .set('X-Test-Skip-Throttle', '1');
 }
 
 export function unauthRequest(app: INestApplication) {
-  return request.agent(app.getHttpServer());
+  return request
+    .agent(app.getHttpServer())
+    .set('X-Test-Skip-Throttle', '1');
 }
 
 export { testDb, testAuth };
