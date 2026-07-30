@@ -39,16 +39,16 @@ export default defineConfig({
     {
       command: 'pnpm --filter @rdcs/web dev',
       port: 3000,
-      timeout: 120000,
+      timeout: 180000,
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
       },
     },
     {
-      command: 'pnpm --filter @rdcs/api dev',
+      command: 'pnpm --filter @rdcs/database db:generate && pnpm --filter @rdcs/api dev',
       port: 3001,
-      timeout: 120000,
+      timeout: 180000,
       env: {
         ...process.env,
         DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/rdcs_test',
