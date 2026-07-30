@@ -113,6 +113,9 @@ jobs:
           E2E_USER_EMAIL: agent@tenant-a.local
           E2E_PASSWORD: password
 
+      - name: Build database package
+        run: pnpm --filter @rdcs/database build
+
       - name: Build API
         run: pnpm --filter @rdcs/api build
 
