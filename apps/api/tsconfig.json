@@ -6,7 +6,10 @@
     "rootDir": ".",
     "declaration": false,
     "declarationMap": false,
-    "paths": {}
+    "paths": {
+      "@rdcs/database": ["../../packages/database/dist"],
+      "@rdcs/database/*": ["../../packages/database/dist/*"]
+    }
   },
   "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "dist"]
