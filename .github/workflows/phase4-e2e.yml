@@ -1,0 +1,130 @@
+name: Phase 4 Browser E2E
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e:
+    name: Phase 4 E2E
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: rdcs_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rdcs_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      # Single source of truth for DB used by API, Prisma, and Playwright helper
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rdcs_test
+      # API/web configs used by Playwright webServer and API bootstrap
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      WEB_ORIGINS: http://localhost:3000
+      NODE_ENV: test
+      SKIP_DB_CONNECT: '0'
+      # Required secrets (safe test values)
+      JWT_SECRET: test-e2e-jwt-secret-32-characters-minimum-1234
+      JWT_REFRESH_SECRET: test-e2e-refresh-secret-32-characters-1234
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Use workspace packageManager (pnpm)
+        run: |
+          corepack prepare pnpm@$(jq -r .packageManager package.json | cut -d'@' -f2) --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for PostgreSQL readiness
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres -d rdcs_test; then
+              echo "PostgreSQL is ready"; break; fi;
+            echo "Waiting for PostgreSQL..."; sleep 2;
+          done
+          pg_isready -h localhost -p 5432 -U postgres -d rdcs_test
+
+      - name: Prisma generate
+        run: pnpm --filter @rdcs/database db:generate
+
+      - name: Apply migrations (deploy)
+        run: pnpm --filter @rdcs/database db:migrate:deploy
+
+      - name: Seed database (deterministic)
+        run: pnpm --filter @rdcs/database db:seed
+
+      - name: Verify seed data exists (tenant and users)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Tenants:";
+          psql "postgresql://postgres@localhost:5432/rdcs_test" -tAc "SELECT slug FROM tenants ORDER BY slug";
+          TENANT_A=$(psql "postgresql://postgres@localhost:5432/rdcs_test" -tAc "SELECT COUNT(*) FROM tenants WHERE slug='rdcs-tenant-a'");
+          TENANT_B=$(psql "postgresql://postgres@localhost:5432/rdcs_test" -tAc "SELECT COUNT(*) FROM tenants WHERE slug='rdcs-tenant-b'");
+          ADMIN_A=$(psql "postgresql://postgres@localhost:5432/rdcs_test" -tAc "SELECT COUNT(*) FROM users WHERE email='admin@tenant-a.local'");
+          AGENT_A=$(psql "postgresql://postgres@localhost:5432/rdcs_test" -tAc "SELECT COUNT(*) FROM users WHERE email='agent@tenant-a.local'");
+          ADMIN_B=$(psql "postgresql://postgres@localhost:5432/rdcs_test" -tAc "SELECT COUNT(*) FROM users WHERE email='admin@tenant-b.local'");
+          AGENT_B=$(psql "postgresql://postgres@localhost:5432/rdcs_test" -tAc "SELECT COUNT(*) FROM users WHERE email='agent@tenant-b.local'");
+          echo "Counts: TENANT_A=$TENANT_A TENANT_B=$TENANT_B ADMIN_A=$ADMIN_A AGENT_A=$AGENT_A ADMIN_B=$ADMIN_B AGENT_B=$AGENT_B";
+          if [ "$TENANT_A" -eq 0 ] || [ "$TENANT_B" -eq 0 ] || [ "$ADMIN_A" -eq 0 ] || [ "$AGENT_A" -eq 0 ] || [ "$ADMIN_B" -eq 0 ] || [ "$AGENT_B" -eq 0 ]; then
+            echo "Expected seed data missing"; exit 1; fi
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run Playwright E2E
+        run: pnpm test:e2e
+        env:
+          # Ensure Playwright runtime receives same configuration
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          NEXT_PUBLIC_API_URL: ${{ env.NEXT_PUBLIC_API_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ env.JWT_REFRESH_SECRET }}
+          NODE_ENV: ${{ env.NODE_ENV }}
+          WEB_ORIGINS: ${{ env.WEB_ORIGINS }}
+          SKIP_DB_CONNECT: '0'
