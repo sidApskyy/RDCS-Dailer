@@ -32,7 +32,7 @@ export default function CallsPage() {
     ]);
     setLeads(leadResponse.data.data.leads || []);
     setCalls(callResponse.data.data.calls || []);
-    setStatus(presenceResponse.data.data.status || 'offline');
+    setStatus(presenceResponse.data.data?.status || 'offline');
   };
 
   useEffect(() => {
