@@ -145,11 +145,14 @@ test.describe('Phase 4 E2E — Call History Display', () => {
       if (phoneOptions <= 1) continue;
       await phoneSelect.selectOption({ index: 1 });
       await page.getByTestId('calls-dial-button').click();
-      await expect(page.getByTestId('calls-message')).toBeVisible({ timeout: 5_000 });
+      // Wait for the message to reach a final state (not "Running compliance checks…")
+      await expect(page.getByTestId('calls-message')).toContainText(/Call started|not eligible|could not be started/i, { timeout: 10_000 });
       const msg = (await page.getByTestId('calls-message').textContent()) || '';
       if (/Call started/i.test(msg)) {
         callPlaced = true;
       } else {
+        // Reset agent to available before trying next lead (dial may have changed status to Busy/WrapUp)
+        await setAgentAvailable(page, agentASession);
         await page.waitForTimeout(500);
       }
     }
@@ -188,15 +191,20 @@ test.describe('Phase 4 E2E — Socket.IO Real-time Updates', () => {
       if (phoneOptions <= 1) continue;
       await phoneSelect.selectOption({ index: 1 });
       await page.getByTestId('calls-dial-button').click();
+      // Wait for the message to reach a final state (not "Running compliance checks…")
       try {
-        await expect(page.getByTestId('calls-message')).toBeVisible({ timeout: 5_000 });
+        await expect(page.getByTestId('calls-message')).toContainText(/Call started|not eligible|could not be started/i, { timeout: 10_000 });
         const msg = (await page.getByTestId('calls-message').textContent()) || '';
         if (/Call started/i.test(msg)) {
           messageChanged = true;
         } else {
+          // Reset agent to available before trying next lead
+          await setAgentAvailable(page, agentASession);
           await page.waitForTimeout(500);
         }
       } catch {
+        // Reset agent to available before trying next lead
+        await setAgentAvailable(page, agentASession);
         await page.waitForTimeout(500);
       }
     }
