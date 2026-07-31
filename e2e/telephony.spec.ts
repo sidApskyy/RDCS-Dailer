@@ -36,6 +36,27 @@ function authHeaders(session: E2EAuthSession): Record<string, string> {
   };
 }
 
+const ACTIVE_CALL_STATES = ['queued', 'dialing', 'ringing', 'connected', 'on_hold'];
+
+async function cleanupActiveCalls(page: Page, session: E2EAuthSession): Promise<void> {
+  const listResponse = await page.request.get(`${API_URL}/api/v1/calls?take=50`, {
+    headers: authHeaders(session),
+  });
+  if (!listResponse.ok()) return;
+  const body = await listResponse.json();
+  const calls = body.data?.calls || body.calls || [];
+  for (const call of calls) {
+    if (ACTIVE_CALL_STATES.includes(call.state)) {
+      await page.request.delete(`${API_URL}/api/v1/calls/${call.id}`, {
+        headers: authHeaders(session),
+      }).catch(() => undefined);
+    }
+  }
+  // Wait for async event processing (mock adapter emits events on timers)
+  await page.waitForTimeout(1_000);
+  await setAgentAvailable(page, session);
+}
+
 test.describe('Phase 4 E2E — Authentication', () => {
   test('should login successfully with valid credentials', async ({ page }) => {
     await loginViaUI(page, tenantAId, 'admin@tenant-a.local', SEED_PASSWORD);
@@ -79,6 +100,9 @@ test.describe('Phase 4 E2E — Manual Dial Flow', () => {
     await page.getByTestId('calls-dial-button').click();
 
     await expect(page.getByTestId('calls-message')).toContainText(/Call started|compliance/i, { timeout: 15_000 });
+
+    // Clean up the call so it doesn't block subsequent tests
+    await cleanupActiveCalls(page, agentASession);
 
     await context.close();
   });
@@ -139,8 +163,8 @@ test.describe('Phase 4 E2E — Call History Display', () => {
     const page = await context.newPage();
     await setAuthTokens(page, agentASession);
 
-    // Set agent available via API
-    await setAgentAvailable(page, agentASession);
+    // Clean up any active calls from previous tests
+    await cleanupActiveCalls(page, agentASession);
 
     // Fetch leads via API
     const leadsResponse = await page.request.get(`${API_URL}/api/v1/leads?take=50`, {
@@ -176,7 +200,7 @@ test.describe('Phase 4 E2E — Call History Display', () => {
 
     if (!callPlaced) {
       // eslint-disable-next-line no-console
-      console.error('All leads failed compliance. Errors:', errors);
+      console.error('All leads failed. Errors:', errors);
     }
     expect(callPlaced).toBe(true);
 
@@ -201,7 +225,9 @@ test.describe('Phase 4 E2E — Socket.IO Real-time Updates', () => {
 
     // Navigate to /calls to establish socket connection
     await page.goto('/calls');
-    await setAgentAvailable(page, agentASession);
+
+    // Clean up any active calls from previous tests
+    await cleanupActiveCalls(page, agentASession);
     await page.reload();
 
     await expect(page.getByTestId('calls-agent-status-badge')).toContainText('available', { timeout: 10_000 });
@@ -247,7 +273,7 @@ test.describe('Phase 4 E2E — Socket.IO Real-time Updates', () => {
 
     if (!callPlaced) {
       // eslint-disable-next-line no-console
-      console.error('All leads failed compliance. Errors:', errors);
+      console.error('All leads failed. Errors:', errors);
     }
     expect(callPlaced).toBe(true);
 
