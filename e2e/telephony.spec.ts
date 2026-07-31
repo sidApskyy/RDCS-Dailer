@@ -16,6 +16,9 @@ test.beforeAll(async () => {
   tenantBId = await getTenantIdBySlug('rdcs-tenant-b');
   agentASession = await loginViaApi(tenantAId, 'agent@tenant-a.local', SEED_PASSWORD);
   agentBSession = await loginViaApi(tenantBId, 'agent@tenant-b.local', SEED_PASSWORD);
+});
+
+test.beforeEach(async () => {
   await cleanupActiveCallsViaDB();
 });
 
@@ -26,13 +29,13 @@ async function cleanupActiveCallsViaDB(): Promise<void> {
   try {
     // Force-close all active call sessions to terminal state
     await client.query(
-      `UPDATE call_sessions SET state = 'cancelled', "completedAt" = NOW(), "terminationReason" = 'cancelled'
+      `UPDATE call_sessions SET state = 'cancelled', completed_at = NOW(), termination_reason = 'cancelled'
        WHERE state IN ('queued', 'dialing', 'ringing', 'connected', 'on_hold')`,
     );
-    // Reset all agent presence to available (not busy/on_call)
+    // Reset all agent presence to available (not busy/on_call/wrap_up)
     await client.query(
       `UPDATE agent_presences SET status = 'available'
-       WHERE status IN ('busy', 'on_call')`,
+       WHERE status IN ('busy', 'on_call', 'wrap_up')`,
     );
   } finally {
     await client.end();
@@ -102,9 +105,6 @@ test.describe('Phase 4 E2E — Manual Dial Flow', () => {
 
     await expect(page.getByTestId('calls-message')).toContainText(/Call started|compliance/i, { timeout: 15_000 });
 
-    // Clean up the call via DB so it doesn't block subsequent tests
-    await cleanupActiveCallsViaDB();
-
     await context.close();
   });
 });
@@ -163,9 +163,6 @@ test.describe('Phase 4 E2E — Call History Display', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
     await setAuthTokens(page, agentASession);
-
-    // Clean up any active calls from previous tests via DB
-    await cleanupActiveCallsViaDB();
 
     // Fetch leads via API
     const leadsResponse = await page.request.get(`${API_URL}/api/v1/leads?take=50`, {
@@ -226,9 +223,6 @@ test.describe('Phase 4 E2E — Socket.IO Real-time Updates', () => {
 
     // Navigate to /calls to establish socket connection
     await page.goto('/calls');
-
-    // Clean up any active calls from previous tests via DB
-    await cleanupActiveCallsViaDB();
     await page.reload();
 
     await expect(page.getByTestId('calls-agent-status-badge')).toContainText('available', { timeout: 10_000 });
