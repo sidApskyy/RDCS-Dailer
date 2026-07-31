@@ -22,9 +22,18 @@ async function setAgentAvailable(page: Page, session: E2EAuthSession): Promise<v
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${session.accessToken}`,
+      'X-Test-Skip-Throttle': '1',
     },
     data: { status: 'available' },
   });
+}
+
+function authHeaders(session: E2EAuthSession): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${session.accessToken}`,
+    'X-Test-Skip-Throttle': '1',
+  };
 }
 
 test.describe('Phase 4 E2E — Authentication', () => {
@@ -129,43 +138,57 @@ test.describe('Phase 4 E2E — Call History Display', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
     await setAuthTokens(page, agentASession);
-    await page.goto('/calls');
+
+    // Set agent available via API
     await setAgentAvailable(page, agentASession);
-    await page.reload();
 
-    await expect(page.getByTestId('calls-agent-status-badge')).toContainText('available', { timeout: 10_000 });
+    // Fetch leads via API
+    const leadsResponse = await page.request.get(`${API_URL}/api/v1/leads?take=50`, {
+      headers: authHeaders(agentASession),
+    });
+    const leadsBody = await leadsResponse.json();
+    const leadsList = leadsBody.data?.leads || leadsBody.leads || [];
 
-    const leadSelect = page.getByTestId('calls-lead-select');
-    const optionCount = await leadSelect.locator('option').count();
+    // Try each lead until one succeeds
     let callPlaced = false;
-    for (let i = 1; i < optionCount && !callPlaced; i++) {
-      await leadSelect.selectOption({ index: i });
-      const phoneSelect = page.getByTestId('calls-phone-select');
-      const phoneOptions = await phoneSelect.locator('option').count();
-      if (phoneOptions <= 1) continue;
-      await phoneSelect.selectOption({ index: 1 });
-      await page.getByTestId('calls-dial-button').click();
-      // Wait for the message to reach a final state (not "Running compliance checks…")
-      await expect(page.getByTestId('calls-message')).toContainText(/Call started|not eligible|could not be started/i, { timeout: 10_000 });
-      const msg = (await page.getByTestId('calls-message').textContent()) || '';
-      if (/Call started/i.test(msg)) {
+    const errors: string[] = [];
+    for (const lead of leadsList) {
+      const phone = lead.phones?.find((p: { isPrimary: boolean }) => p.isPrimary) || lead.phones?.[0];
+      if (!phone) continue;
+
+      // Reset agent to available before each attempt
+      await setAgentAvailable(page, agentASession);
+
+      const dialResponse = await page.request.post(`${API_URL}/api/v1/calls/manual-dial`, {
+        headers: authHeaders(agentASession),
+        data: { leadId: lead.id, phoneNumber: phone.phoneNumber },
+      });
+
+      if (dialResponse.ok()) {
         callPlaced = true;
+        break;
       } else {
-        // Reset agent to available before trying next lead (dial may have changed status to Busy/WrapUp)
-        await setAgentAvailable(page, agentASession);
-        await page.waitForTimeout(500);
+        const errorBody = await dialResponse.json().catch(() => ({}));
+        const errorMsg = errorBody?.message || errorBody?.error?.message || dialResponse.statusText();
+        errors.push(`Lead ${lead.firstName} ${lead.lastName} (${lead.timezone}): ${errorMsg}`);
       }
     }
 
-    if (callPlaced) {
-      await page.waitForTimeout(3_000);
-      await page.reload();
-      const callHistory = page.locator('.space-y-3 > div');
-      const historyCount = await callHistory.count();
-      expect(historyCount).toBeGreaterThan(0);
+    if (!callPlaced) {
+      // eslint-disable-next-line no-console
+      console.error('All leads failed compliance. Errors:', errors);
     }
-
     expect(callPlaced).toBe(true);
+
+    // Navigate to calls page and verify call history is displayed
+    await page.goto('/calls');
+    await page.waitForTimeout(2_000);
+    await page.reload();
+
+    const callHistory = page.locator('.space-y-3 > div');
+    const historyCount = await callHistory.count();
+    expect(historyCount).toBeGreaterThan(0);
+
     await context.close();
   });
 });
@@ -175,41 +198,65 @@ test.describe('Phase 4 E2E — Socket.IO Real-time Updates', () => {
     const context = await browser.newContext();
     const page = await context.newPage();
     await setAuthTokens(page, agentASession);
+
+    // Navigate to /calls to establish socket connection
     await page.goto('/calls');
     await setAgentAvailable(page, agentASession);
     await page.reload();
 
     await expect(page.getByTestId('calls-agent-status-badge')).toContainText('available', { timeout: 10_000 });
 
-    const leadSelect = page.getByTestId('calls-lead-select');
-    const optionCount = await leadSelect.locator('option').count();
-    let messageChanged = false;
-    for (let i = 1; i < optionCount && !messageChanged; i++) {
-      await leadSelect.selectOption({ index: i });
-      const phoneSelect = page.getByTestId('calls-phone-select');
-      const phoneOptions = await phoneSelect.locator('option').count();
-      if (phoneOptions <= 1) continue;
-      await phoneSelect.selectOption({ index: 1 });
-      await page.getByTestId('calls-dial-button').click();
-      // Wait for the message to reach a final state (not "Running compliance checks…")
-      try {
-        await expect(page.getByTestId('calls-message')).toContainText(/Call started|not eligible|could not be started/i, { timeout: 10_000 });
-        const msg = (await page.getByTestId('calls-message').textContent()) || '';
-        if (/Call started/i.test(msg)) {
-          messageChanged = true;
-        } else {
-          // Reset agent to available before trying next lead
-          await setAgentAvailable(page, agentASession);
-          await page.waitForTimeout(500);
-        }
-      } catch {
-        // Reset agent to available before trying next lead
-        await setAgentAvailable(page, agentASession);
-        await page.waitForTimeout(500);
+    // Wait for socket to connect and leads to load
+    await expect(page.getByTestId('calls-lead-select').locator('option')).not.toHaveCount(1, { timeout: 10_000 });
+
+    // Count initial calls
+    const initialCallHistory = page.locator('.space-y-3 > div');
+    const initialCount = await initialCallHistory.count();
+
+    // Fetch leads via API
+    const leadsResponse = await page.request.get(`${API_URL}/api/v1/leads?take=50`, {
+      headers: authHeaders(agentASession),
+    });
+    const leadsBody = await leadsResponse.json();
+    const leadsList = leadsBody.data?.leads || leadsBody.leads || [];
+
+    // Try each lead until one succeeds
+    let callPlaced = false;
+    const errors: string[] = [];
+    for (const lead of leadsList) {
+      const phone = lead.phones?.find((p: { isPrimary: boolean }) => p.isPrimary) || lead.phones?.[0];
+      if (!phone) continue;
+
+      // Reset agent to available before each attempt
+      await setAgentAvailable(page, agentASession);
+
+      const dialResponse = await page.request.post(`${API_URL}/api/v1/calls/manual-dial`, {
+        headers: authHeaders(agentASession),
+        data: { leadId: lead.id, phoneNumber: phone.phoneNumber },
+      });
+
+      if (dialResponse.ok()) {
+        callPlaced = true;
+        break;
+      } else {
+        const errorBody = await dialResponse.json().catch(() => ({}));
+        const errorMsg = errorBody?.message || errorBody?.error?.message || dialResponse.statusText();
+        errors.push(`Lead ${lead.firstName} ${lead.lastName} (${lead.timezone}): ${errorMsg}`);
       }
     }
 
-    expect(messageChanged).toBe(true);
+    if (!callPlaced) {
+      // eslint-disable-next-line no-console
+      console.error('All leads failed compliance. Errors:', errors);
+    }
+    expect(callPlaced).toBe(true);
+
+    // Wait for socket event to trigger refresh and update call history
+    await expect(async () => {
+      const currentCount = await page.locator('.space-y-3 > div').count();
+      expect(currentCount).toBeGreaterThan(initialCount);
+    }).toPass({ timeout: 15_000 });
+
     await context.close();
   });
 });

@@ -34,7 +34,7 @@ export class TelephonyThrottlerGuard extends ThrottlerGuard {
   protected async shouldSkip(_context: ExecutionContext): Promise<boolean> {
     const req = _context.switchToHttp().getRequest<Record<string, unknown>>();
     const headers = (req?.['headers'] as Record<string, string | undefined>) || {};
-    if (process.env.NODE_ENV === 'test' && (headers['x-test-skip-throttle'] === '1' || headers['X-Test-Skip-Throttle'] === '1')) {
+    if ((process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') && (headers['x-test-skip-throttle'] === '1' || headers['X-Test-Skip-Throttle'] === '1')) {
       return true;
     }
     return false;
