@@ -413,6 +413,23 @@ async function main() {
     },
   });
 
+  // Seed a 24/7 calling window for tenant A so E2E tests pass on weekends
+  await prisma.callingWindow.upsert({
+    where: { id: 'seed-calling-window-247-tenant-a' },
+    update: {},
+    create: {
+      id: 'seed-calling-window-247-tenant-a',
+      tenantId: tenantA.id,
+      name: '24/7 Calling Window',
+      description: 'Always-on calling window for E2E testing',
+      dayOfWeek: -1,
+      startTime: '00:00',
+      endTime: '23:59',
+      timezone: 'UTC',
+      isActive: true,
+    },
+  });
+
   // Seed lead list for tenant A
   const leadListA = await prisma.leadList.upsert({
     where: { id: 'seed-lead-list-tenant-a' },

@@ -37,6 +37,7 @@ export interface CallingWindowRecord {
 
 export interface WindowCheckResult {
   isInWindow: boolean;
+  hasExplicitWindows?: boolean;
   window?: CallingWindowRecord;
   reason?: string;
 }
@@ -142,17 +143,17 @@ export class CallingWindowService {
     });
 
     if (callingWindows.length === 0) {
-      return { isInWindow: true, reason: 'No calling windows configured' };
+      return { isInWindow: true, hasExplicitWindows: false, reason: 'No calling windows configured' };
     }
 
     for (const window of callingWindows) {
       const result = this.checkWindow(date, window);
       if (result.isInWindow) {
-        return { isInWindow: true, window };
+        return { isInWindow: true, hasExplicitWindows: true, window };
       }
     }
 
-    return { isInWindow: false, reason: 'Outside all calling windows' };
+    return { isInWindow: false, hasExplicitWindows: true, reason: 'Outside all calling windows' };
   }
 
   private checkWindow(date: Date, window: CallingWindowRecord): WindowCheckResult {

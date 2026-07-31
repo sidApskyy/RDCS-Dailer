@@ -82,6 +82,7 @@ export class ComplianceEngineService {
       }
     }
 
+    let hasExplicitCallingWindows = false;
     if (config.checkCallingWindow) {
       const windowResult = await this.callingWindow.checkCallingWindow(tenantId, new Date());
 
@@ -93,9 +94,13 @@ export class ComplianceEngineService {
           metadata: { reason: windowResult.reason },
         };
       }
+
+      hasExplicitCallingWindows = !!windowResult.hasExplicitWindows;
     }
 
-    if (config.checkTimezone && config.timezone) {
+    // Skip default timezone/business hours check when the tenant has explicitly configured calling windows.
+    // The calling window configuration replaces the default 9-5 Mon-Fri restriction.
+    if (config.checkTimezone && config.timezone && !hasExplicitCallingWindows) {
       const isBusinessHours = this.timezone.isBusinessHours(new Date(), config.timezone);
       const isWeekday = this.timezone.isWeekday(new Date(), config.timezone);
 
