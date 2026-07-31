@@ -76,6 +76,9 @@ async function main() {
     { resource: 'campaigns', action: 'read', scope: 'tenant' },
     { resource: 'campaigns', action: 'create', scope: 'tenant' },
     { resource: 'campaigns', action: 'update', scope: 'tenant' },
+    { resource: 'leads', action: 'read', scope: 'tenant' },
+    { resource: 'leads', action: 'create', scope: 'tenant' },
+    { resource: 'leads', action: 'update', scope: 'tenant' },
   ];
 
   for (const permissionInput of permissions) {
@@ -111,7 +114,7 @@ async function main() {
   }
 
   const agentPermissions = permissions.filter((p) =>
-    ['calls', 'contacts'].includes(p.resource),
+    ['calls', 'contacts', 'leads'].includes(p.resource),
   );
 
   for (const permissionInput of agentPermissions) {
@@ -410,8 +413,85 @@ async function main() {
     },
   });
 
+  // Seed lead list for tenant A
+  const leadListA = await prisma.leadList.upsert({
+    where: { id: 'seed-lead-list-tenant-a' },
+    update: { name: 'Tenant A E2E Leads' },
+    create: {
+      id: 'seed-lead-list-tenant-a',
+      tenantId: tenantA.id,
+      organizationId: orgA.id,
+      name: 'Tenant A E2E Leads',
+      description: 'Leads for E2E manual dial testing',
+      status: 'active',
+      totalRows: 3,
+      createdBy: adminUserA.id,
+    },
+  });
+
+  // Seed leads with phone numbers and consent for tenant A
+  // Use multiple timezones so at least one is in business hours regardless of CI time
+  const seedLeads = [
+    { firstName: 'John', lastName: 'Doe', email: 'john.doe@example.com', timezone: 'America/New_York', phone: '5551001001' },
+    { firstName: 'Jane', lastName: 'Smith', email: 'jane.smith@example.com', timezone: 'America/Los_Angeles', phone: '5551002002' },
+    { firstName: 'Bob', lastName: 'Johnson', email: 'bob.johnson@example.com', timezone: 'Asia/Tokyo', phone: '5551003003' },
+  ];
+
+  for (const seedLead of seedLeads) {
+    const lead = await prisma.lead.upsert({
+      where: { id: `seed-lead-${seedLead.phone}` },
+      update: {
+        firstName: seedLead.firstName,
+        lastName: seedLead.lastName,
+        email: seedLead.email,
+        timezone: seedLead.timezone,
+        status: 'new',
+        leadListId: leadListA.id,
+      },
+      create: {
+        id: `seed-lead-${seedLead.phone}`,
+        tenantId: tenantA.id,
+        organizationId: orgA.id,
+        leadListId: leadListA.id,
+        firstName: seedLead.firstName,
+        lastName: seedLead.lastName,
+        email: seedLead.email,
+        timezone: seedLead.timezone,
+        status: 'new',
+        createdBy: adminUserA.id,
+        phones: {
+          create: [{
+            tenantId: tenantA.id,
+            phoneNumber: seedLead.phone,
+            type: 'mobile',
+            isPrimary: true,
+            isValid: true,
+          }],
+        },
+      },
+    });
+
+    // Seed consent (granted) for each lead so compliance checks pass
+    await prisma.consent.upsert({
+      where: { id: `seed-consent-${lead.id}` },
+      update: { status: 'granted' },
+      create: {
+        id: `seed-consent-${lead.id}`,
+        tenantId: tenantA.id,
+        leadId: lead.id,
+        phoneNumber: seedLead.phone,
+        status: 'granted',
+        type: 'express',
+        source: 'website',
+        method: 'checkbox',
+        jurisdiction: 'US',
+        scope: 'all_communications',
+      },
+    });
+  }
+
   console.info(
-    `Seeded tenants ${tenantA.slug} and ${tenantB.slug} with users for cross-tenant testing`,
+    `Seeded tenants ${tenantA.slug} and ${tenantB.slug} with users and leads for cross-tenant testing`,
   );
 }
 
