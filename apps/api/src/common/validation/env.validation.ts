@@ -12,6 +12,7 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('1d'),
   WEB_ORIGINS: z.string().optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug', 'verbose']).default('info'),
+  TELEPHONY_PROVIDER: z.enum(['mock', 'twilio']).default('mock'),
 }).superRefine((data, ctx) => {
   if (data.NODE_ENV === 'production') {
     const weakSecrets = ['test-secret-key', 'change-me', 'secret', 'jwt-secret'];
@@ -42,6 +43,7 @@ export function validateEnv(): Env {
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN,
     WEB_ORIGINS: process.env.WEB_ORIGINS,
     LOG_LEVEL: process.env.LOG_LEVEL,
+    TELEPHONY_PROVIDER: process.env.TELEPHONY_PROVIDER,
   };
 
   try {
