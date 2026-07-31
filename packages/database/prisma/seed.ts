@@ -435,6 +435,11 @@ async function main() {
     { firstName: 'John', lastName: 'Doe', email: 'john.doe@example.com', timezone: 'America/New_York', phone: '5551001001' },
     { firstName: 'Jane', lastName: 'Smith', email: 'jane.smith@example.com', timezone: 'America/Los_Angeles', phone: '5551002002' },
     { firstName: 'Bob', lastName: 'Johnson', email: 'bob.johnson@example.com', timezone: 'Asia/Tokyo', phone: '5551003003' },
+    { firstName: 'Alice', lastName: 'Williams', email: 'alice.williams@example.com', timezone: 'Asia/Kolkata', phone: '5551004004' },
+    { firstName: 'Charlie', lastName: 'Brown', email: 'charlie.brown@example.com', timezone: 'Asia/Dubai', phone: '5551005005' },
+    { firstName: 'Diana', lastName: 'Prince', email: 'diana.prince@example.com', timezone: 'Europe/Berlin', phone: '5551006006' },
+    { firstName: 'Edward', lastName: 'Norton', email: 'edward.norton@example.com', timezone: 'Europe/London', phone: '5551007007' },
+    { firstName: 'Fiona', lastName: 'Green', email: 'fiona.green@example.com', timezone: 'Pacific/Auckland', phone: '5551008008' },
   ];
 
   for (const seedLead of seedLeads) {

@@ -137,10 +137,24 @@ test.describe('Phase 4 E2E — Call History Display', () => {
 
     const leadSelect = page.getByTestId('calls-lead-select');
     const optionCount = await leadSelect.locator('option').count();
-    if (optionCount > 1) {
-      await leadSelect.selectOption({ index: 1 });
-      await page.getByTestId('calls-phone-select').selectOption({ index: 1 });
+    let callPlaced = false;
+    for (let i = 1; i < optionCount && !callPlaced; i++) {
+      await leadSelect.selectOption({ index: i });
+      const phoneSelect = page.getByTestId('calls-phone-select');
+      const phoneOptions = await phoneSelect.locator('option').count();
+      if (phoneOptions <= 1) continue;
+      await phoneSelect.selectOption({ index: 1 });
       await page.getByTestId('calls-dial-button').click();
+      await expect(page.getByTestId('calls-message')).toBeVisible({ timeout: 5_000 });
+      const msg = (await page.getByTestId('calls-message').textContent()) || '';
+      if (/Call started/i.test(msg)) {
+        callPlaced = true;
+      } else {
+        await page.waitForTimeout(500);
+      }
+    }
+
+    if (callPlaced) {
       await page.waitForTimeout(3_000);
       await page.reload();
       const callHistory = page.locator('.space-y-3 > div');
@@ -148,6 +162,7 @@ test.describe('Phase 4 E2E — Call History Display', () => {
       expect(historyCount).toBeGreaterThan(0);
     }
 
+    expect(callPlaced).toBe(true);
     await context.close();
   });
 });
@@ -165,16 +180,28 @@ test.describe('Phase 4 E2E — Socket.IO Real-time Updates', () => {
 
     const leadSelect = page.getByTestId('calls-lead-select');
     const optionCount = await leadSelect.locator('option').count();
-    if (optionCount > 1) {
-      await leadSelect.selectOption({ index: 1 });
-      await page.getByTestId('calls-phone-select').selectOption({ index: 1 });
-
-      const messageBefore = await page.getByTestId('calls-message').textContent().catch(() => '');
+    let messageChanged = false;
+    for (let i = 1; i < optionCount && !messageChanged; i++) {
+      await leadSelect.selectOption({ index: i });
+      const phoneSelect = page.getByTestId('calls-phone-select');
+      const phoneOptions = await phoneSelect.locator('option').count();
+      if (phoneOptions <= 1) continue;
+      await phoneSelect.selectOption({ index: 1 });
       await page.getByTestId('calls-dial-button').click();
-
-      await expect(page.getByTestId('calls-message')).not.toContainText(messageBefore || '', { timeout: 15_000 });
+      try {
+        await expect(page.getByTestId('calls-message')).toBeVisible({ timeout: 5_000 });
+        const msg = (await page.getByTestId('calls-message').textContent()) || '';
+        if (/Call started/i.test(msg)) {
+          messageChanged = true;
+        } else {
+          await page.waitForTimeout(500);
+        }
+      } catch {
+        await page.waitForTimeout(500);
+      }
     }
 
+    expect(messageChanged).toBe(true);
     await context.close();
   });
 });
