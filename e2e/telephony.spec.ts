@@ -3,6 +3,7 @@ import { test, expect, Page } from '@playwright/test';
 import { getTenantIdBySlug, loginViaUI, loginViaApi, setAuthTokens, E2EAuthSession } from './helpers/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/rdcs_test';
 const SEED_PASSWORD = 'password';
 
 let tenantAId: string;
@@ -15,7 +16,28 @@ test.beforeAll(async () => {
   tenantBId = await getTenantIdBySlug('rdcs-tenant-b');
   agentASession = await loginViaApi(tenantAId, 'agent@tenant-a.local', SEED_PASSWORD);
   agentBSession = await loginViaApi(tenantBId, 'agent@tenant-b.local', SEED_PASSWORD);
+  await cleanupActiveCallsViaDB();
 });
+
+async function cleanupActiveCallsViaDB(): Promise<void> {
+  const { Client } = await import('pg');
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  try {
+    // Force-close all active call sessions to terminal state
+    await client.query(
+      `UPDATE call_sessions SET state = 'cancelled', "completedAt" = NOW(), "terminationReason" = 'cancelled'
+       WHERE state IN ('queued', 'dialing', 'ringing', 'connected', 'on_hold')`,
+    );
+    // Reset all agent presence to available (not busy/on_call)
+    await client.query(
+      `UPDATE agent_presences SET status = 'available'
+       WHERE status IN ('busy', 'on_call')`,
+    );
+  } finally {
+    await client.end();
+  }
+}
 
 async function setAgentAvailable(page: Page, session: E2EAuthSession): Promise<void> {
   await page.request.put(`${API_URL}/api/v1/calls/agent/status`, {
@@ -34,27 +56,6 @@ function authHeaders(session: E2EAuthSession): Record<string, string> {
     Authorization: `Bearer ${session.accessToken}`,
     'X-Test-Skip-Throttle': '1',
   };
-}
-
-const ACTIVE_CALL_STATES = ['queued', 'dialing', 'ringing', 'connected', 'on_hold'];
-
-async function cleanupActiveCalls(page: Page, session: E2EAuthSession): Promise<void> {
-  const listResponse = await page.request.get(`${API_URL}/api/v1/calls?take=50`, {
-    headers: authHeaders(session),
-  });
-  if (!listResponse.ok()) return;
-  const body = await listResponse.json();
-  const calls = body.data?.calls || body.calls || [];
-  for (const call of calls) {
-    if (ACTIVE_CALL_STATES.includes(call.state)) {
-      await page.request.delete(`${API_URL}/api/v1/calls/${call.id}`, {
-        headers: authHeaders(session),
-      }).catch(() => undefined);
-    }
-  }
-  // Wait for async event processing (mock adapter emits events on timers)
-  await page.waitForTimeout(1_000);
-  await setAgentAvailable(page, session);
 }
 
 test.describe('Phase 4 E2E — Authentication', () => {
@@ -101,8 +102,8 @@ test.describe('Phase 4 E2E — Manual Dial Flow', () => {
 
     await expect(page.getByTestId('calls-message')).toContainText(/Call started|compliance/i, { timeout: 15_000 });
 
-    // Clean up the call so it doesn't block subsequent tests
-    await cleanupActiveCalls(page, agentASession);
+    // Clean up the call via DB so it doesn't block subsequent tests
+    await cleanupActiveCallsViaDB();
 
     await context.close();
   });
@@ -163,8 +164,8 @@ test.describe('Phase 4 E2E — Call History Display', () => {
     const page = await context.newPage();
     await setAuthTokens(page, agentASession);
 
-    // Clean up any active calls from previous tests
-    await cleanupActiveCalls(page, agentASession);
+    // Clean up any active calls from previous tests via DB
+    await cleanupActiveCallsViaDB();
 
     // Fetch leads via API
     const leadsResponse = await page.request.get(`${API_URL}/api/v1/leads?take=50`, {
@@ -226,8 +227,8 @@ test.describe('Phase 4 E2E — Socket.IO Real-time Updates', () => {
     // Navigate to /calls to establish socket connection
     await page.goto('/calls');
 
-    // Clean up any active calls from previous tests
-    await cleanupActiveCalls(page, agentASession);
+    // Clean up any active calls from previous tests via DB
+    await cleanupActiveCallsViaDB();
     await page.reload();
 
     await expect(page.getByTestId('calls-agent-status-badge')).toContainText('available', { timeout: 10_000 });
