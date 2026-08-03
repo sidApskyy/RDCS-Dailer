@@ -13,7 +13,40 @@ const envSchema = z.object({
   WEB_ORIGINS: z.string().optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug', 'verbose']).default('info'),
   TELEPHONY_PROVIDER: z.enum(['mock', 'twilio']).default('mock'),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_PHONE_NUMBER: z.string().optional(),
+  TWILIO_WEBHOOK_URL: z.string().optional(),
+  TWILIO_WEBHOOK_VERIFY: z.string().optional().default('true'),
 }).superRefine((data, ctx) => {
+  if (data.TELEPHONY_PROVIDER === 'twilio') {
+    const missing: string[] = [];
+    if (!data.TWILIO_ACCOUNT_SID) missing.push('TWILIO_ACCOUNT_SID');
+    if (!data.TWILIO_AUTH_TOKEN) missing.push('TWILIO_AUTH_TOKEN');
+    if (!data.TWILIO_PHONE_NUMBER) missing.push('TWILIO_PHONE_NUMBER');
+    if (!data.TWILIO_WEBHOOK_URL) missing.push('TWILIO_WEBHOOK_URL');
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TELEPHONY_PROVIDER'],
+        message: `TELEPHONY_PROVIDER=twilio requires the following environment variables: ${missing.join(', ')}.`,
+      });
+    }
+    if (data.TWILIO_ACCOUNT_SID && !data.TWILIO_ACCOUNT_SID.startsWith('AC')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TWILIO_ACCOUNT_SID'],
+        message: 'TWILIO_ACCOUNT_SID must start with "AC".',
+      });
+    }
+    if (data.TWILIO_AUTH_TOKEN && data.TWILIO_AUTH_TOKEN.length < 32) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TWILIO_AUTH_TOKEN'],
+        message: 'TWILIO_AUTH_TOKEN must be at least 32 characters long.',
+      });
+    }
+  }
   if (data.NODE_ENV === 'production') {
     const weakSecrets = ['test-secret-key', 'change-me', 'secret', 'jwt-secret'];
     if (weakSecrets.includes(data.JWT_SECRET)) {
@@ -44,6 +77,11 @@ export function validateEnv(): Env {
     WEB_ORIGINS: process.env.WEB_ORIGINS,
     LOG_LEVEL: process.env.LOG_LEVEL,
     TELEPHONY_PROVIDER: process.env.TELEPHONY_PROVIDER,
+    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
+    TWILIO_WEBHOOK_URL: process.env.TWILIO_WEBHOOK_URL,
+    TWILIO_WEBHOOK_VERIFY: process.env.TWILIO_WEBHOOK_VERIFY,
   };
 
   try {

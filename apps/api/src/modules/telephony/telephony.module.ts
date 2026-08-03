@@ -11,6 +11,7 @@ import { TELEPHONY_ADAPTER } from './telephony.adapter';
 import { TelephonyController } from './telephony.controller';
 import { TelephonyEvents } from './telephony.events';
 import { TelephonyService } from './telephony.service';
+import { TwilioAdapter } from './twilio.adapter';
 
 @Module({
   imports: [PrismaModule, ComplianceModule, AuthModule],
@@ -20,15 +21,17 @@ import { TelephonyService } from './telephony.service';
     TelephonyService,
     TelephonySocketService,
     MockTelephonyAdapter,
+    TwilioAdapter,
     ProviderRegistryImpl,
     { provide: PROVIDER_REGISTRY, useExisting: ProviderRegistryImpl },
     {
       provide: TELEPHONY_ADAPTER,
-      useFactory: (registry: ProviderRegistry, mockAdapter: MockTelephonyAdapter) => {
+      useFactory: (registry: ProviderRegistry, mockAdapter: MockTelephonyAdapter, twilioAdapter: TwilioAdapter) => {
         registry.register('mock', mockAdapter);
+        registry.register('twilio', twilioAdapter);
         return registry.resolve();
       },
-      inject: [PROVIDER_REGISTRY, MockTelephonyAdapter],
+      inject: [PROVIDER_REGISTRY, MockTelephonyAdapter, TwilioAdapter],
     },
   ],
   exports: [TelephonyService, TelephonyEvents],
