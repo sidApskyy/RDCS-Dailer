@@ -1,9 +1,9 @@
 /**
  * Twilio-specific configuration and type definitions.
  *
- * Phase 5.2.1 — Stub only. No real Twilio SDK integration yet.
- * These types define the configuration structure and status mapping
- * that will be used when the full adapter is implemented in Phase 5.2.2.
+ * Phase 5.2.2 — Real Twilio outbound call implementation.
+ * These types define the configuration structure, status mapping,
+ * call info, and error mapping used by the TwilioAdapter and TwilioClient.
  */
 
 export interface TwilioConfig {
@@ -45,3 +45,43 @@ export const TWILIO_ENV_KEYS = {
   WEBHOOK_URL: 'TWILIO_WEBHOOK_URL',
   WEBHOOK_VERIFY: 'TWILIO_WEBHOOK_VERIFY',
 } as const;
+
+/**
+ * Normalized Twilio call information returned by TwilioClient.
+ * Contains only the fields needed by the adapter — no credentials.
+ */
+export interface TwilioCallInfo {
+  sid: string;
+  status: string;
+  duration: string | null;
+  from: string;
+  to: string;
+}
+
+/**
+ * Mapping from Twilio failure statuses to safe, non-sensitive error codes
+ * used in CallFailure.code. These codes are safe to expose in errors and logs.
+ */
+export const TWILIO_ERROR_MAP: Record<string, { code: string; message: string; retryable: boolean }> = {
+  busy: { code: 'TWILIO_BUSY', message: 'Destination line busy', retryable: true },
+  failed: { code: 'TWILIO_FAILED', message: 'Twilio call failed', retryable: false },
+  no_answer: { code: 'TWILIO_NO_ANSWER', message: 'No answer at destination', retryable: true },
+  cancelled: { code: 'TWILIO_CANCELLED', message: 'Call was cancelled', retryable: false },
+};
+
+/**
+ * Polling configuration for Twilio call status checks.
+ */
+export const TWILIO_POLL_INTERVAL_MS = 2000;
+export const TWILIO_POLL_MAX_DURATION_MS = 300_000;
+
+/**
+ * Twilio call statuses that indicate a terminal state — polling stops.
+ */
+export const TWILIO_TERMINAL_STATUSES = new Set([
+  'completed',
+  'busy',
+  'failed',
+  'no-answer',
+  'canceled',
+]);
