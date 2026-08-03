@@ -9,12 +9,17 @@ export class TwilioClient {
     this.client = Twilio(accountSid, authToken);
   }
 
-  async createCall(params: { to: string; from: string; twiml: string }): Promise<TwilioCallInfo> {
-    const call = await this.client.calls.create({
+  async createCall(params: { to: string; from: string; twiml: string; statusCallback?: string; statusCallbackEvent?: string[] }): Promise<TwilioCallInfo> {
+    const createData: Record<string, unknown> = {
       to: params.to,
       from: params.from,
       twiml: params.twiml,
-    });
+    };
+    if (params.statusCallback) {
+      createData.statusCallback = params.statusCallback;
+      createData.statusCallbackEvent = params.statusCallbackEvent || ['initiated', 'ringing', 'answered', 'completed'];
+    }
+    const call = await this.client.calls.create(createData as unknown as Parameters<typeof this.client.calls.create>[0]);
     return this.normalizeCall(call);
   }
 

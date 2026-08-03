@@ -11,17 +11,20 @@ import { TELEPHONY_ADAPTER } from './telephony.adapter';
 import { TelephonyController } from './telephony.controller';
 import { TelephonyEvents } from './telephony.events';
 import { TelephonyService } from './telephony.service';
+import { TwilioSignatureService } from './twilio-signature.service';
+import { TwilioWebhookController } from './twilio-webhook.controller';
 import { TwilioAdapter } from './twilio.adapter';
 
 @Module({
   imports: [PrismaModule, ComplianceModule, AuthModule],
-  controllers: [TelephonyController],
+  controllers: [TelephonyController, TwilioWebhookController],
   providers: [
     TelephonyEvents,
     TelephonyService,
     TelephonySocketService,
     MockTelephonyAdapter,
     TwilioAdapter,
+    TwilioSignatureService,
     ProviderRegistryImpl,
     { provide: PROVIDER_REGISTRY, useExisting: ProviderRegistryImpl },
     {

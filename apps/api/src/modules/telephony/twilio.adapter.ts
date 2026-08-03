@@ -14,6 +14,19 @@ import {
   TwilioConfig,
 } from './twilio.types';
 
+/**
+ * Parameters for webhook event ingestion.
+ * The webhook controller resolves these from the DB via CallSession.providerRef lookup.
+ */
+export interface WebhookEventParams {
+  callId: string;
+  tenantId: string;
+  agentId: string;
+  sid: string;
+  twilioStatus: string;
+  duration?: number;
+}
+
 const STATE_TO_EVENT_TYPE: Record<CallState, CallEventType> = {
   [CallState.Idle]: 'call.disposed',
   [CallState.Queued]: 'call.created',
@@ -54,13 +67,20 @@ export class TwilioAdapter implements TelephonyAdapter, OnModuleDestroy {
     const config = this.ensureConfig();
     const client = this.ensureClient();
 
+    const createParams: { to: string; from: string; twiml: string; statusCallback?: string; statusCallbackEvent?: string[] } = {
+      to: command.phoneNumber,
+      from: config.phoneNumber,
+      twiml: `<Response><Dial>${command.phoneNumber}</Dial></Response>`,
+    };
+
+    if (config.webhookUrl) {
+      createParams.statusCallback = config.webhookUrl;
+      createParams.statusCallbackEvent = ['initiated', 'ringing', 'answered', 'completed'];
+    }
+
     let callInfo;
     try {
-      callInfo = await client.createCall({
-        to: command.phoneNumber,
-        from: config.phoneNumber,
-        twiml: `<Response><Dial>${command.phoneNumber}</Dial></Response>`,
-      });
+      callInfo = await client.createCall(createParams);
     } catch (error) {
       throw this.mapTwilioError(error);
     }
@@ -108,6 +128,50 @@ export class TwilioAdapter implements TelephonyAdapter, OnModuleDestroy {
 
   getConfig(): Readonly<TwilioConfig> {
     return { ...this.ensureConfig() };
+  }
+
+  /**
+   * Phase 5.2.3 — Ingest a Twilio webhook status callback event.
+   *
+   * Called by the webhook controller after it has:
+   * 1. Verified the Twilio signature
+   * 2. Parsed the webhook payload
+   * 3. Resolved the Twilio Call SID to an internal callId via DB lookup
+   *
+   * This method reuses the same dedup, emission, and cleanup logic as polling.
+   * It does NOT depend on the in-memory callSidMap — the webhook controller
+   * resolves callId from the database (CallSession.providerRef).
+   *
+   * Returns true if an event was emitted, false if it was suppressed (duplicate,
+   * unknown status, or invalid transition).
+   */
+  ingestWebhookEvent(params: WebhookEventParams): boolean {
+    const mappedState = TWILIO_STATUS_MAP[params.twilioStatus];
+    if (!mappedState || mappedState === CallState.Queued) {
+      return false;
+    }
+
+    const lastState = this.lastEmittedStates.get(params.callId);
+    if (mappedState === lastState) {
+      return false;
+    }
+
+    const command: CallCommand = {
+      callId: params.callId,
+      tenantId: params.tenantId,
+      agentId: params.agentId,
+      leadId: '',
+      phoneNumber: '',
+    };
+
+    this.emitEvent(command, mappedState as CallState, params.sid);
+    this.lastEmittedStates.set(params.callId, mappedState);
+
+    if (TWILIO_TERMINAL_STATUSES.has(params.twilioStatus)) {
+      this.cleanupCall(params.callId);
+    }
+
+    return true;
   }
 
   onModuleDestroy(): void {

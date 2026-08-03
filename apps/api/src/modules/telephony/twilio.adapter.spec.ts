@@ -196,12 +196,14 @@ describe('TwilioAdapter', () => {
   });
 
   describe('dial()', () => {
-    it('creates a Twilio call with correct parameters', async () => {
+    it('creates a Twilio call with correct parameters including statusCallback', async () => {
       await adapter.dial(makeCommand());
       expect(mockCreateCall).toHaveBeenCalledWith({
         to: '+15551111111',
         from: VALID_TWILIO_ENV.TWILIO_PHONE_NUMBER,
         twiml: '<Response><Dial>+15551111111</Dial></Response>',
+        statusCallback: VALID_TWILIO_ENV.TWILIO_WEBHOOK_URL,
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       });
     });
 
@@ -681,6 +683,269 @@ describe('TwilioAdapter', () => {
         expect(JSON.stringify(event)).not.toContain(VALID_TWILIO_ENV.TWILIO_AUTH_TOKEN);
         expect(JSON.stringify(event)).not.toContain(VALID_TWILIO_ENV.TWILIO_ACCOUNT_SID);
       }
+    });
+  });
+
+  describe('ingestWebhookEvent()', () => {
+    it('emits ringing event from webhook and returns true', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-1').subscribe((e) => events.push(e));
+
+      const emitted = adapter.ingestWebhookEvent({
+        callId: 'call-wh-1',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-1',
+        twilioStatus: 'ringing',
+      });
+
+      expect(emitted).toBe(true);
+      expect(events.some((e) => e.state === CallState.Ringing)).toBe(true);
+    });
+
+    it('emits connected event from webhook', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-2').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-2',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-2',
+        twilioStatus: 'in-progress',
+      });
+
+      expect(events.some((e) => e.state === CallState.Connected)).toBe(true);
+    });
+
+    it('emits completed terminal event and cleans up', () => {
+      let completed = false;
+      adapter.events('call-wh-3').subscribe({ complete: () => { completed = true; } });
+
+      const emitted = adapter.ingestWebhookEvent({
+        callId: 'call-wh-3',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-3',
+        twilioStatus: 'completed',
+      });
+
+      expect(emitted).toBe(true);
+      expect(completed).toBe(true);
+    });
+
+    it('emits busy terminal event', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-4').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-4',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-4',
+        twilioStatus: 'busy',
+      });
+
+      expect(events.some((e) => e.state === CallState.Busy)).toBe(true);
+    });
+
+    it('emits failed terminal event', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-5').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-5',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-5',
+        twilioStatus: 'failed',
+      });
+
+      expect(events.some((e) => e.state === CallState.Failed)).toBe(true);
+    });
+
+    it('emits no-answer terminal event', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-6').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-6',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-6',
+        twilioStatus: 'no-answer',
+      });
+
+      expect(events.some((e) => e.state === CallState.NoAnswer)).toBe(true);
+    });
+
+    it('emits canceled terminal event', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-7').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-7',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-7',
+        twilioStatus: 'canceled',
+      });
+
+      expect(events.some((e) => e.state === CallState.Cancelled)).toBe(true);
+    });
+
+    it('emits dialing event from initiated status', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-8').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-8',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-8',
+        twilioStatus: 'initiated',
+      });
+
+      expect(events.some((e) => e.state === CallState.Dialing)).toBe(true);
+    });
+
+    it('returns false for queued status (skipped)', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-skip').subscribe((e) => events.push(e));
+
+      const emitted = adapter.ingestWebhookEvent({
+        callId: 'call-wh-skip',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-skip',
+        twilioStatus: 'queued',
+      });
+
+      expect(emitted).toBe(false);
+      expect(events).toHaveLength(0);
+    });
+
+    it('returns false for unknown Twilio status', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-unknown').subscribe((e) => events.push(e));
+
+      const emitted = adapter.ingestWebhookEvent({
+        callId: 'call-wh-unknown',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-unknown',
+        twilioStatus: 'unknown-status',
+      });
+
+      expect(emitted).toBe(false);
+      expect(events).toHaveLength(0);
+    });
+
+    it('suppresses duplicate webhook event (same state emitted twice)', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-dup').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-dup',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-dup',
+        twilioStatus: 'ringing',
+      });
+
+      const emitted2 = adapter.ingestWebhookEvent({
+        callId: 'call-wh-dup',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-dup',
+        twilioStatus: 'ringing',
+      });
+
+      expect(emitted2).toBe(false);
+      const ringingEvents = events.filter((e) => e.state === CallState.Ringing);
+      expect(ringingEvents).toHaveLength(1);
+    });
+
+    it('works without prior dial() — creates Subject on demand', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-nodial').subscribe((e) => events.push(e));
+
+      const emitted = adapter.ingestWebhookEvent({
+        callId: 'call-wh-nodial',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-nodial',
+        twilioStatus: 'ringing',
+      });
+
+      expect(emitted).toBe(true);
+      expect(events.some((e) => e.state === CallState.Ringing)).toBe(true);
+    });
+
+    it('populates CallFailure for failure states from webhook', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-fail').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-fail',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-fail',
+        twilioStatus: 'failed',
+      });
+
+      const failed = events.find((e) => e.state === CallState.Failed);
+      expect(failed).toBeDefined();
+      expect(failed!.failure).toBeDefined();
+      expect(failed!.failure!.code).toBe('TWILIO_FAILED');
+    });
+
+    it('does not expose credentials in webhook event payloads', () => {
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-sec').subscribe((e) => events.push(e));
+
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-sec',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-sec',
+        twilioStatus: 'completed',
+      });
+
+      for (const event of events) {
+        expect(JSON.stringify(event)).not.toContain(VALID_TWILIO_ENV.TWILIO_AUTH_TOKEN);
+        expect(JSON.stringify(event)).not.toContain(VALID_TWILIO_ENV.TWILIO_ACCOUNT_SID);
+      }
+    });
+
+    it('coexists with polling without duplicate events', async () => {
+      jest.useFakeTimers();
+      mockCreateCall.mockResolvedValue(makeCallInfo({ sid: 'CA-wh-coexist', status: 'queued' }));
+      mockFetchCall.mockResolvedValue(makeCallInfo({ sid: 'CA-wh-coexist', status: 'ringing' }));
+
+      const events: CallEvent[] = [];
+      adapter.events('call-wh-coexist').subscribe((e) => events.push(e));
+
+      await adapter.dial(makeCommand({ callId: 'call-wh-coexist' }));
+      events.length = 0;
+
+      // Webhook arrives first with ringing
+      adapter.ingestWebhookEvent({
+        callId: 'call-wh-coexist',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sid: 'CA-wh-coexist',
+        twilioStatus: 'ringing',
+      });
+
+      // Polling fires — should be suppressed (same state)
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const ringingCount = events.filter((e) => e.state === CallState.Ringing).length;
+      expect(ringingCount).toBe(1);
+      jest.useRealTimers();
     });
   });
 });

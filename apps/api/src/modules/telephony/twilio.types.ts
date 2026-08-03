@@ -85,3 +85,34 @@ export const TWILIO_TERMINAL_STATUSES = new Set([
   'no-answer',
   'canceled',
 ]);
+
+/**
+ * Phase 5.2.3 — Twilio webhook payload types.
+ *
+ * Twilio sends status callbacks as URL-encoded form data.
+ * These types represent the normalized payload after parsing.
+ */
+
+/**
+ * Normalized Twilio status callback payload.
+ * Contains only the fields needed for call state processing.
+ */
+export interface TwilioStatusCallbackPayload {
+  /** Twilio Call SID (starts with "CA") */
+  callSid: string;
+  /** Twilio call status string (queued, initiated, ringing, in-progress, completed, busy, failed, no-answer, canceled) */
+  callStatus: string;
+  /** Call duration in seconds (only present on completed status) */
+  callDuration?: string;
+  /** Caller phone number */
+  from?: string;
+  /** Destination phone number */
+  to?: string;
+  /** Call direction (outbound-api, inbound, etc.) */
+  direction?: string;
+}
+
+/**
+ * HTTP header name for the Twilio webhook signature.
+ */
+export const TWILIO_SIGNATURE_HEADER = 'x-twilio-signature';
