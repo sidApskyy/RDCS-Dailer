@@ -16,6 +16,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CallbackModule } from './modules/callback/callback.module';
 import { CallingWindowModule } from './modules/calling-window/calling-window.module';
 import { CampaignModule } from './modules/campaign/campaign.module';
+import { CampaignDialerModule } from './modules/campaign-dialer/campaign-dialer.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { ConsentModule } from './modules/consent/consent.module';
 import { DispositionModule } from './modules/disposition/disposition.module';
@@ -60,6 +61,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CallingWindowModule,
     AttemptModule,
     ComplianceModule,
+    CampaignDialerModule,
     TelephonyModule,
   ],
   controllers: [AppController],
