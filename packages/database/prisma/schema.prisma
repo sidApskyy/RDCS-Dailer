@@ -43,6 +43,7 @@ model Tenant {
   leads Lead[]
   callSessions CallSession[]
   agentPresences AgentPresence[]
+  dialQueues   CampaignDialQueue[]
 
   @@index([slug])
   @@index([status])
@@ -122,6 +123,7 @@ model User {
   leadAttempts LeadAttempt[] @relation("AttemptAgent")
   callSessions CallSession[]
   agentPresences AgentPresence[]
+  dialQueues   CampaignDialQueue[]
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
@@ -326,6 +328,7 @@ model Campaign {
   purpose          String?
   startDate        DateTime? @map("start_date")
   endDate          DateTime? @map("end_date")
+  dialingMode      String   @default("manual") @map("dialing_mode") // manual, progressive, power
   timezone         String   @default("UTC")
   priority         Int      @default(0)
   settings         Json?
@@ -348,6 +351,7 @@ model Campaign {
   callbacks    Callback[]
   leadDispositions LeadDisposition[]
   callSessions CallSession[]
+  dialQueues   CampaignDialQueue[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -535,6 +539,7 @@ model Lead {
   callbacks    Callback[]
   dispositions LeadDisposition[]
   callSessions CallSession[]
+  dialQueues   CampaignDialQueue[]
 
   @@index([tenantId, status])
   @@index([tenantId, campaignId])
@@ -848,6 +853,7 @@ model CallSession {
   campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   disposition Disposition? @relation(fields: [dispositionId], references: [id], onDelete: SetNull)
   attempt     LeadAttempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+  dialQueue   CampaignDialQueue?
 
   @@index([tenantId, agentId, state])
   @@index([tenantId, leadId])
@@ -866,7 +872,38 @@ model AgentPresence {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   agent  User   @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
+  currentQueueId  String?   @map("current_queue_id")
+  lastCallEndedAt DateTime? @map("last_call_ended_at")
+
   @@unique([tenantId, agentId])
   @@index([tenantId, status])
   @@map("agent_presences")
+}
+
+// Phase 5.3.1: Campaign Dial Queue
+
+model CampaignDialQueue {
+  id            String    @id @default(cuid())
+  tenantId      String    @map("tenant_id")
+  campaignId    String    @map("campaign_id")
+  leadId        String    @map("lead_id")
+  phoneNumber   String    @map("phone_number")
+  priority      Int       @default(0)
+  status        String    @default("pending") // pending, dialing, completed, skipped
+  agentId       String?   @map("agent_id")
+  callSessionId String?   @unique @map("call_session_id")
+  queuedAt      DateTime  @default(now()) @map("queued_at")
+  dialedAt      DateTime? @map("dialed_at")
+  skippedReason String?   @map("skipped_reason")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign    Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead        Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agent       User?        @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  callSession CallSession? @relation(fields: [callSessionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, campaignId, status])
+  @@index([tenantId, campaignId, priority])
+  @@map("campaign_dial_queues")
 }
